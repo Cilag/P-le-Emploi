@@ -1,5 +1,6 @@
 import asyncio
 from typing import List
+from urllib.parse import quote_plus
 from playwright.async_api import async_playwright
 from app.schemas.offre import OffreCreate
 from app.services.scrapers.base import BaseScraper
@@ -20,7 +21,7 @@ class LinkedInScraper(BaseScraper):
                     user_agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
                 )
                 page = await ctx.new_page()
-                url = f"https://www.linkedin.com/jobs/search/?keywords={query}&location={location}"
+                url = f"https://www.linkedin.com/jobs/search/?keywords={quote_plus(query or "")}&location={quote_plus(location)}"
                 await page.goto(url, timeout=30000)
                 await asyncio.sleep(3)
 

@@ -83,12 +83,12 @@ async def send_candidature_email(
     _user: Annotated[str, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ):
-    # SEC-02: validate destination belongs to the authenticated user's contacts,
-    # not an arbitrary external address used to relay spam.
-    # For this single-user app, if user_email is configured, the user can only
-    # send to addresses they own (self-delivery test) or any address once authenticated.
-    # Minimum: must be a well-formed email (enforced by Pydantic EmailStr in schema).
-    # The JWT guard above is the primary protection against open relay abuse.
+    # SEC-02: restrict send-email to the configured user's own address
+    if settings.user_email and req.destinataire != settings.user_email:
+        raise HTTPException(
+            status_code=403,
+            detail="Email can only be sent to the authenticated user's configured address.",
+        )
 
     candidature = await db.get(Candidature, candidature_id)
     if not candidature:

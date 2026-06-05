@@ -1,5 +1,6 @@
 import asyncio
 from typing import List
+from urllib.parse import quote_plus
 from playwright.async_api import async_playwright
 from app.schemas.offre import OffreCreate
 from app.services.scrapers.base import BaseScraper
@@ -18,7 +19,7 @@ class MonsterScraper(BaseScraper):
                 browser = await p.chromium.launch(headless=True)
                 ctx = await browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
                 page = await ctx.new_page()
-                url = f"https://www.monster.fr/emploi/recherche/?q={query}&where={location}"
+                url = f"https://www.monster.fr/emploi/recherche/?q={quote_plus(query or "")}&where={quote_plus(location)}"
                 await page.goto(url, timeout=30000)
                 await asyncio.sleep(2)
 

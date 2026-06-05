@@ -2,12 +2,13 @@ import os
 from typing import Annotated
 
 import magic
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.auth import get_current_user
+from app.core.limiter import limiter
 from app.db.session import get_db
 from app.models.cv import CV
 from app.schemas.cv import AuditConfig, CVRead
@@ -80,7 +81,9 @@ async def get_active_cv(
 
 
 @router.post("/audit", status_code=202)
+@limiter.limit("5/minute")
 async def trigger_audit(
+    request: Request,
     config: AuditConfig,
     _user: Annotated[str, Depends(get_current_user)],
 ):

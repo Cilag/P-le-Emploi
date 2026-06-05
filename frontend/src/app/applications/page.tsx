@@ -69,6 +69,7 @@ export default function ApplicationsPage() {
         <h1 className="text-2xl font-bold text-gray-900">Candidatures</h1>
         <div className="flex gap-2">
           <select
+            aria-label="Filtrer par statut"
             className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
             value={filterStatut}
             onChange={(e) => setFilterStatut(e.target.value)}
@@ -112,6 +113,7 @@ export default function ApplicationsPage() {
           <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
             <h2 className="font-bold text-lg mb-4">Envoyer la candidature par email</h2>
             <input
+              aria-label="Email du destinataire"
               className="w-full border border-gray-200 rounded-lg px-3 py-2 mb-4"
               placeholder="Email destinataire..."
               value={emailAddr}
@@ -150,12 +152,13 @@ function CandidatureCard({
 }) {
   return (
     <div className={`bg-white rounded-xl border p-4 flex gap-3 items-center transition-all ${selected ? "border-primary-500" : "border-gray-100"} shadow-sm`}>
-      <input type="checkbox" checked={selected} onChange={onToggle} className="w-4 h-4 accent-primary-600" />
+      <input type="checkbox" checked={selected} onChange={onToggle} className="w-4 h-4 accent-primary-600" aria-label={`Sélectionner candidature #${candidature.id}`} />
       <div className="flex-1">
         <p className="text-sm text-gray-600">Offre #{candidature.offre_id}</p>
         <p className="text-xs text-gray-400">{new Date(candidature.cree_le).toLocaleDateString("fr-FR")}</p>
       </div>
       <select
+        aria-label={`Statut de la candidature #${candidature.id}`}
         className={`text-xs font-medium px-3 py-1 rounded-full border-0 cursor-pointer ${STATUT_COLORS[candidature.statut] ?? "bg-gray-100 text-gray-700"}`}
         value={candidature.statut}
         onChange={(e) => onStatusChange(e.target.value)}

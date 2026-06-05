@@ -72,7 +72,7 @@ export default function JobsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Offres d'emploi</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Offres d&apos;emploi</h1>
         <button
           onClick={() => setShowScanModal(true)}
           className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors font-medium"
@@ -84,6 +84,7 @@ export default function JobsPage() {
       {/* Filters */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex gap-3 flex-wrap">
         <select
+          aria-label="Filtrer par source"
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
           value={filters.source}
           onChange={(e) => setFilters((f) => ({ ...f, source: e.target.value }))}
@@ -94,6 +95,7 @@ export default function JobsPage() {
           ))}
         </select>
         <select
+          aria-label="Filtrer par type de contrat"
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm"
           value={filters.type_contrat}
           onChange={(e) => setFilters((f) => ({ ...f, type_contrat: e.target.value }))}
@@ -103,6 +105,7 @@ export default function JobsPage() {
           ))}
         </select>
         <input
+          aria-label="Filtrer par ville"
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm flex-1 min-w-[150px]"
           placeholder="Ville..."
           value={filters.ville}
@@ -135,24 +138,28 @@ export default function JobsPage() {
             <h2 className="text-lg font-bold mb-4">Paramètres du scan</h2>
             <div className="space-y-3">
               <input
+                aria-label="Secteur d'activité"
                 className="w-full border border-gray-200 rounded-lg px-3 py-2"
                 placeholder="Secteur (ex: informatique)"
                 value={scanParams.secteur}
                 onChange={(e) => setScanParams((p) => ({ ...p, secteur: e.target.value }))}
               />
               <input
+                aria-label="Mots-clés"
                 className="w-full border border-gray-200 rounded-lg px-3 py-2"
                 placeholder="Mots-clés (ex: React, Python)"
                 value={scanParams.mots_cles}
                 onChange={(e) => setScanParams((p) => ({ ...p, mots_cles: e.target.value }))}
               />
               <input
+                aria-label="Ville"
                 className="w-full border border-gray-200 rounded-lg px-3 py-2"
                 placeholder="Ville (optionnel)"
                 value={scanParams.ville ?? ""}
                 onChange={(e) => setScanParams((p) => ({ ...p, ville: e.target.value }))}
               />
               <select
+                aria-label="Type de contrat"
                 className="w-full border border-gray-200 rounded-lg px-3 py-2"
                 value={scanParams.type_contrat ?? ""}
                 onChange={(e) => setScanParams((p) => ({ ...p, type_contrat: e.target.value || undefined }))}
@@ -184,7 +191,7 @@ export default function JobsPage() {
 function OffreCard({ offre, selected, onToggle }: { offre: Offre; selected: boolean; onToggle: () => void }) {
   return (
     <div className={`bg-white rounded-xl border p-4 flex gap-3 items-start transition-all ${selected ? "border-primary-500 shadow-md" : "border-gray-100 shadow-sm"}`}>
-      <input type="checkbox" checked={selected} onChange={onToggle} className="mt-1 w-4 h-4 accent-primary-600" />
+      <input type="checkbox" checked={selected} onChange={onToggle} className="mt-1 w-4 h-4 accent-primary-600" aria-label={`Sélectionner l'offre ${offre.titre}`} />
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <h3 className="font-semibold text-gray-900 truncate">{offre.titre}</h3>
@@ -196,7 +203,7 @@ function OffreCard({ offre, selected, onToggle }: { offre: Offre; selected: bool
         )}
       </div>
       <a href={offre.lien_source} target="_blank" rel="noopener noreferrer" className="text-primary-600 text-sm hover:underline shrink-0">
-        Voir l'offre →
+        Voir l&apos;offre →
       </a>
     </div>
   );

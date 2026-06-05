@@ -14,7 +14,7 @@ export default function Home() {
     <div className="space-y-8">
       <div className="text-center py-12">
         <h1 className="text-4xl font-bold text-gray-900">Pôle Emploi Assistant</h1>
-        <p className="mt-4 text-lg text-gray-600">Votre assistant IA pour automatiser votre recherche d'emploi en France</p>
+        <p className="mt-4 text-lg text-gray-600">Votre assistant IA pour automatiser votre recherche d&apos;emploi en France</p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {features.map(({ href, icon: Icon, label, desc }) => (

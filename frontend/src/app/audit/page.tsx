@@ -23,8 +23,8 @@ export default function AuditPage() {
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
         <p className="text-gray-600">
-          L'agent IA analyse votre CV en profondeur et génère un rapport structuré avec :
-          des points forts, des axes d'amélioration, des recommandations et les compétences
+          L&apos;agent IA analyse votre CV en profondeur et génère un rapport structuré avec :
+          des points forts, des axes d&apos;amélioration, des recommandations et les compétences
           manquantes détectées dans les offres récentes.
         </p>
 
@@ -57,7 +57,7 @@ export default function AuditPage() {
       </div>
 
       <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-700">
-        <strong>Note :</strong> L'audit mensuel automatique est configuré par votre administrateur infrastructure.
+        <strong>Note :</strong> L&apos;audit mensuel automatique est configuré par votre administrateur infrastructure.
         Utilisez ce bouton pour déclencher un audit à la demande.
       </div>
     </div>

@@ -72,7 +72,7 @@ export default function JobsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Offres d'emploi</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Offres d&apos;emploi</h1>
         <button
           onClick={() => setShowScanModal(true)}
           className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors font-medium"
@@ -196,7 +196,7 @@ function OffreCard({ offre, selected, onToggle }: { offre: Offre; selected: bool
         )}
       </div>
       <a href={offre.lien_source} target="_blank" rel="noopener noreferrer" className="text-primary-600 text-sm hover:underline shrink-0">
-        Voir l'offre →
+        Voir l&apos;offre →
       </a>
     </div>
   );

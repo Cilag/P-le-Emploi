@@ -82,6 +82,7 @@ async def get_active_cv(
 
 
 @router.post("/audit")
+<<<<<<< HEAD
 async def trigger_audit(
     config: AuditConfig,
     _user: Annotated[str, Depends(get_current_user)],
@@ -92,6 +93,9 @@ async def trigger_audit(
             status_code=403,
             detail="Audit report can only be sent to the authenticated user's email address.",
         )
+=======
+async def trigger_audit(config: AuditConfig):
+>>>>>>> 31a9e65 (fix: resolve eslint errors and broken Python imports blocking CI)
     from app.workers_client import run_cv_audit_task
     task = run_cv_audit_task.apply_async(
         kwargs={"email_destination": config.email_destination},

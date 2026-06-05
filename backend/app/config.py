@@ -13,7 +13,8 @@ class Settings(BaseSettings):
 
     allowed_origins: list[str] = ["http://localhost:3000"]
 
-    anthropic_api_key: str = ""
+    ollama_host: str = "http://ollama:11434"
+    ollama_model: str = "mistral:7b"
     francetravail_client_id: str = ""
     francetravail_client_secret: str = ""
 

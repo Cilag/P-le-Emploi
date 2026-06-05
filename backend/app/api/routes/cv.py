@@ -3,7 +3,7 @@ from typing import Annotated
 
 import magic
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -58,9 +58,7 @@ async def upload_cv(
     with open(filepath, "wb") as f:
         f.write(content)
 
-    existing = await db.execute(select(CV).where(CV.actif == True))
-    for old_cv in existing.scalars().all():
-        old_cv.actif = False
+    await db.execute(update(CV).where(CV.actif == True).values(actif=False))
 
     cv = CV(filename=file.filename, filepath=filepath, texte_extrait=texte, actif=True)
     db.add(cv)
@@ -81,7 +79,7 @@ async def get_active_cv(
     return cv
 
 
-@router.post("/audit")
+@router.post("/audit", status_code=202)
 async def trigger_audit(
     config: AuditConfig,
     _user: Annotated[str, Depends(get_current_user)],

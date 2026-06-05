@@ -37,6 +37,9 @@ export default function CVUploadPage() {
       <h1 className="text-2xl font-bold text-gray-900">Mon CV</h1>
 
       <div
+        role="button"
+        tabIndex={0}
+        aria-label="Zone de dépôt du CV — cliquez ou glissez un fichier PDF ou DOCX"
         className={`border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-colors ${
           dragging ? "border-primary-500 bg-primary-50" : "border-gray-200 hover:border-primary-400"
         }`}
@@ -49,6 +52,7 @@ export default function CVUploadPage() {
           if (file) handleFile(file);
         }}
         onClick={() => inputRef.current?.click()}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") inputRef.current?.click(); }}
       >
         <Upload className="w-10 h-10 text-gray-400 mx-auto mb-3" />
         <p className="text-gray-600 font-medium">
@@ -60,6 +64,7 @@ export default function CVUploadPage() {
           type="file"
           accept=".pdf,.docx"
           className="hidden"
+          aria-label="Sélectionner un fichier CV (PDF ou DOCX)"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
         />
       </div>

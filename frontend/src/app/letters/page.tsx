@@ -35,6 +35,7 @@ export default function LettersPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Lettres de motivation</h1>
         <input
+          aria-label="Filtrer par entreprise"
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm w-64"
           placeholder="Filtrer par entreprise..."
           value={search}
@@ -86,6 +87,7 @@ export default function LettersPage() {
               <h2 className="font-bold text-lg">Modifier la lettre — {editing.entreprise}</h2>
             </div>
             <textarea
+              aria-label={`Contenu de la lettre — ${editing.entreprise}`}
               className="flex-1 p-5 text-sm font-mono resize-none outline-none overflow-y-auto"
               value={editContent}
               onChange={(e) => setEditContent(e.target.value)}

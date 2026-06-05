@@ -27,8 +27,6 @@ from app.services.pdf_generator import generate_letter_pdf
 
 router = APIRouter(prefix="/candidatures", tags=["candidatures"])
 
-VALID_STATUTS = {"en_attente", "envoyee", "refusee", "entretien", "acceptee"}
-
 
 @router.get("", response_model=list[CandidatureRead])
 async def list_candidatures(
@@ -69,8 +67,6 @@ async def update_candidature(
     _user: Annotated[str, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ):
-    if data.statut not in VALID_STATUTS:
-        raise HTTPException(status_code=422, detail=f"Invalid statut. Must be one of: {VALID_STATUTS}")
     candidature = await db.get(Candidature, candidature_id)
     if not candidature:
         raise HTTPException(status_code=404, detail="Candidature not found")

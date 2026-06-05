@@ -26,7 +26,7 @@ async def list_lettres(
     return result.scalars().all()
 
 
-@router.post("/generate")
+@router.post("/generate", status_code=202)
 async def generate_lettre(
     req: LettreGenerateRequest,
     _user: Annotated[str, Depends(get_current_user)],

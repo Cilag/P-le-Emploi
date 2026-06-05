@@ -71,7 +71,7 @@ async def get_offre(
     return offre
 
 
-@router.post("/scan")
+@router.post("/scan", status_code=202)
 async def launch_scan(
     params: OffreScanParams,
     _user: Annotated[str, Depends(get_current_user)],

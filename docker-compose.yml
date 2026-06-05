@@ -1,4 +1,18 @@
 services:
+  ollama:
+    image: ollama/ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/api/tags || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
   db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -43,6 +57,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      ollama:
+        condition: service_healthy
     volumes:
       - ./backend:/app
     networks:
@@ -86,6 +102,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      ollama:
+        condition: service_healthy
     volumes:
       - ./workers:/app
     networks:
@@ -112,6 +130,7 @@ volumes:
   db_data:
   redis_data:
   scheduler_data:
+  ollama_data:
 
 networks:
   internal:

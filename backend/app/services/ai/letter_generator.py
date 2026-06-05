@@ -1,15 +1,33 @@
-import anthropic
+import json
+import httpx
 from app.config import settings
 
 
-_client = None
-
-
-def get_client() -> anthropic.Anthropic:
-    global _client
-    if _client is None:
-        _client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    return _client
+def _ollama_chat(system_prompt: str, user_prompt: str, expect_json: bool = False) -> str:
+    payload = {
+        "model": settings.ollama_model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "stream": False,
+        **({"format": "json"} if expect_json else {}),
+    }
+    try:
+        resp = httpx.post(
+            f"{settings.ollama_host}/api/chat",
+            json=payload,
+            timeout=120.0,
+        )
+        resp.raise_for_status()
+        return resp.json()["message"]["content"]
+    except httpx.ConnectError:
+        raise RuntimeError(
+            f"Ollama est inaccessible ({settings.ollama_host}). "
+            "Vérifiez que le service Ollama est démarré et que OLLAMA_HOST est correct."
+        )
+    except httpx.HTTPStatusError as e:
+        raise RuntimeError(f"Erreur Ollama HTTP {e.response.status_code}: {e.response.text[:200]}")
 
 
 def generate_cover_letter(
@@ -19,29 +37,17 @@ def generate_cover_letter(
     offre_description: str,
     type_contrat: str | None = None,
 ) -> str:
-    client = get_client()
     contract_hint = "en alternance" if type_contrat and "alternance" in type_contrat.lower() else "en CDI/CDD"
 
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1500,
-        system=[
-            {
-                "type": "text",
-                "text": f"""Tu es un expert en rédaction de lettres de motivation pour le secteur tech/informatique en France.
+    system_prompt = f"""Tu es un expert en rédaction de lettres de motivation pour le secteur tech/informatique en France.
 Tu rédiges des lettres professionnelles, personnalisées, convaincantes et adaptées au ton de l'entreprise.
 Voici le CV du candidat (utilise ces informations comme base pour personnaliser la lettre) :
 
 <cv>
 {cv_text}
-</cv>""",
-                "cache_control": {"type": "ephemeral"},
-            }
-        ],
-        messages=[
-            {
-                "role": "user",
-                "content": f"""Rédige une lettre de motivation {contract_hint} pour le poste suivant :
+</cv>"""
+
+    user_prompt = f"""Rédige une lettre de motivation {contract_hint} pour le poste suivant :
 
 **Poste** : {offre_titre}
 **Entreprise** : {offre_entreprise}
@@ -56,34 +62,20 @@ Règles :
 - Utilise le prénom et les compétences du CV pour personnaliser
 - Termine avec une formule de politesse adaptée au type de contrat
 
-Retourne uniquement le texte de la lettre, sans balises ni méta-commentaires.""",
-            }
-        ],
-    )
+Retourne uniquement le texte de la lettre, sans balises ni méta-commentaires."""
 
-    return response.content[0].text
+    return _ollama_chat(system_prompt, user_prompt)
 
 
 def generate_cv_audit(cv_text: str, offres_recentes: list[str] | None = None) -> dict:
-    client = get_client()
     offres_context = "\n".join(offres_recentes[:10]) if offres_recentes else "Pas d'offres récentes disponibles."
 
-    response = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=2000,
-        system=[
-            {
-                "type": "text",
-                "text": """Tu es un expert RH et conseiller en carrière tech en France.
+    system_prompt = """Tu es un expert RH et conseiller en carrière tech en France.
 Tu analyses des CV pour le secteur Informatique / Dev / Data / Alternance tech.
-Ton analyse est structurée, bienveillante mais honnête, axée sur l'employabilité.""",
-                "cache_control": {"type": "ephemeral"},
-            }
-        ],
-        messages=[
-            {
-                "role": "user",
-                "content": f"""Analyse ce CV en détail :
+Ton analyse est structurée, bienveillante mais honnête, axée sur l'employabilité.
+Réponds uniquement avec un objet JSON valide, sans texte supplémentaire."""
+
+    user_prompt = f"""Analyse ce CV en détail :
 
 <cv>
 {cv_text}
@@ -102,13 +94,9 @@ Fournis ton analyse au format JSON strict avec ces champs :
   "score_global": <entier entre 0 et 10>,
   "competences_manquantes": ["..."],
   "resume_executif": "..."
-}}""",
-            }
-        ],
-    )
+}}"""
 
-    import json
-    text = response.content[0].text
+    text = _ollama_chat(system_prompt, user_prompt, expect_json=True)
     start = text.find("{")
     end = text.rfind("}") + 1
     if start >= 0 and end > start:

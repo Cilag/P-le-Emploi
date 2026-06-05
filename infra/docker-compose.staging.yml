@@ -1,0 +1,47 @@
+# docker-compose override for staging
+# Usage: docker compose -f docker-compose.yml -f infra/docker-compose.staging.yml up -d
+
+services:
+  backend:
+    build:
+      target: prod
+    restart: always
+
+  frontend:
+    build:
+      target: prod
+    restart: always
+
+  worker:
+    restart: always
+
+  scheduler:
+    restart: always
+
+  nginx:
+    image: nginx:alpine
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - certbot_webroot:/var/www/certbot
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - public
+
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt
+      - certbot_webroot:/var/www/certbot
+    entrypoint: >
+      sh -c "trap exit TERM;
+             while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h & wait $${!}; done"
+
+volumes:
+  certbot_webroot:

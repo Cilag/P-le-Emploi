@@ -1,0 +1,58 @@
+name: Deploy — Staging
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false   # never cancel in-flight deploys
+
+jobs:
+  deploy:
+    name: Deploy to staging
+    runs-on: ubuntu-latest
+    environment: staging
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.STAGING_SSH_KEY }}
+
+      - name: Add staging host to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.STAGING_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Copy files to staging server
+        run: |
+          rsync -avz --exclude='.git' --exclude='node_modules' --exclude='.venv' \
+            ./ ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }}:/opt/pole-emploi/
+
+      - name: Deploy via docker compose
+        env:
+          STAGING_HOST: ${{ secrets.STAGING_HOST }}
+          STAGING_USER: ${{ secrets.STAGING_USER }}
+        run: |
+          ssh ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} << 'EOF'
+            set -e
+            cd /opt/pole-emploi
+            # Pull secrets from environment (set on the host via .env managed out-of-band)
+            docker compose pull 2>/dev/null || true
+            docker compose up --build -d --remove-orphans
+            docker compose exec -T backend python -m alembic upgrade head 2>/dev/null || true
+            echo "Deploy complete. Checking health..."
+            sleep 10
+            curl -sf http://localhost:8000/health || (echo "Health check failed!" && exit 1)
+          EOF
+
+      - name: Notify deploy success
+        if: success()
+        run: echo "Staging deploy successful — ${{ github.sha }}"
+
+      - name: Notify deploy failure
+        if: failure()
+        run: echo "Staging deploy FAILED — check logs"

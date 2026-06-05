@@ -1,5 +1,6 @@
 import asyncio
 from typing import List
+from urllib.parse import quote_plus
 from playwright.async_api import async_playwright
 from app.schemas.offre import OffreCreate
 from app.services.scrapers.base import BaseScraper
@@ -20,7 +21,7 @@ class IndeedScraper(BaseScraper):
                     user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
                 )
                 page = await ctx.new_page()
-                url = f"https://fr.indeed.com/jobs?q={query}&l={location}&lang=fr"
+                url = f"https://fr.indeed.com/jobs?q={quote_plus(query or "")}&l={quote_plus(location)}&lang=fr"
                 await page.goto(url, timeout=30000)
                 await asyncio.sleep(2)
 

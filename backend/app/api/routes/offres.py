@@ -1,10 +1,11 @@
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
+from app.core.limiter import limiter
 from app.db.session import get_db
 from app.models.offre import Offre
 from app.schemas.offre import OffreRead, OffreScanParams
@@ -72,7 +73,9 @@ async def get_offre(
 
 
 @router.post("/scan", status_code=202)
+@limiter.limit("5/minute")
 async def launch_scan(
+    request: Request,
     params: OffreScanParams,
     _user: Annotated[str, Depends(get_current_user)],
 ):

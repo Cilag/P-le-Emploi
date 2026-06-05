@@ -1,5 +1,6 @@
 import asyncio
 from typing import List
+from urllib.parse import quote_plus
 from playwright.async_api import async_playwright
 from app.schemas.offre import OffreCreate
 from app.services.scrapers.base import BaseScraper
@@ -17,9 +18,9 @@ class LEtudiantScraper(BaseScraper):
                 browser = await p.chromium.launch(headless=True)
                 ctx = await browser.new_context(user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
                 page = await ctx.new_page()
-                url = f"https://jobs.letudiant.fr/alternances.html?q={query}"
+                url = f"https://jobs.letudiant.fr/alternances.html?q={quote_plus(query or "")}"
                 if ville:
-                    url += f"&location={ville}"
+                    url += f"&location={quote_plus(ville)}"
                 await page.goto(url, timeout=30000)
                 await asyncio.sleep(2)
 

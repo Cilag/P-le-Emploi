@@ -1,4 +1,5 @@
 import httpx
+from urllib.parse import quote
 from typing import List
 from bs4 import BeautifulSoup
 from app.schemas.offre import OffreCreate
@@ -14,7 +15,7 @@ class RegionsJobScraper(BaseScraper):
         offres = []
 
         try:
-            url = f"{self.BASE_URL}/emploi/{query.replace(' ', '-')}.html"
+            url = f"{self.BASE_URL}/emploi/{quote((query or '').replace(' ', '-'), safe='-')}.html"
             async with httpx.AsyncClient(timeout=20, headers={"User-Agent": "Mozilla/5.0"}) as client:
                 resp = await client.get(url)
                 if resp.status_code != 200:

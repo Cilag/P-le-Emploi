@@ -1,4 +1,5 @@
 import feedparser
+from urllib.parse import quote_plus
 from typing import List
 from app.schemas.offre import OffreCreate
 from app.services.scrapers.base import BaseScraper
@@ -12,7 +13,7 @@ class CadrEmploiScraper(BaseScraper):
         offres = []
 
         try:
-            url = f"https://www.cadremploi.fr/rss/emploi/offres?q={query}&l={ville or 'France'}"
+            url = f"https://www.cadremploi.fr/rss/emploi/offres?q={quote_plus(query or '')}&l={quote_plus(ville or 'France')}"
             feed = feedparser.parse(url)
             for entry in feed.entries[:20]:
                 offres.append(

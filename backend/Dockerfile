@@ -13,12 +13,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+RUN useradd -m -u 1001 appuser && chown -R appuser /app
+
 # ── Development ──────────────────────────────────────────────────────────────
 FROM base AS dev
+USER appuser
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
 
 # ── Production ───────────────────────────────────────────────────────────────
 FROM base AS prod
-RUN useradd -m -u 1001 appuser && chown -R appuser /app
 USER appuser
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]

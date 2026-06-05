@@ -3,8 +3,8 @@ from pathlib import Path
 
 
 def extract_text_from_pdf(content: bytes) -> str:
-    import PyPDF2
-    reader = PyPDF2.PdfReader(io.BytesIO(content))
+    import pypdf
+    reader = pypdf.PdfReader(io.BytesIO(content))
     text_parts = []
     for page in reader.pages:
         text = page.extract_text()

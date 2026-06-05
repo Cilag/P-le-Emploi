@@ -3,20 +3,24 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 from app.api import scheduler
 from app.api.routes import auth, candidatures, cv, lettres, offres
 from app.config import settings
+from app.core.limiter import limiter
 from app.db.session import Base, engine
-
-limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # SEC-10: fail fast if the default dev secret is still in use in production
+    if settings.app_env == "production" and settings.secret_key == "dev-secret-change-me":
+        raise RuntimeError(
+            "SECRET_KEY is set to the default dev value. "
+            "Set a secure random SECRET_KEY in your .env before starting in production."
+        )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield

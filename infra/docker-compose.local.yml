@@ -1,0 +1,29 @@
+# Local network deployment overlay — HTTP only, no Let's Encrypt
+# Usage: docker compose -f docker-compose.yml -f infra/docker-compose.staging.yml -f infra/docker-compose.local.yml up --build -d
+
+services:
+  backend:
+    build:
+      target: prod
+    ports: []
+
+  frontend:
+    build:
+      target: prod
+    ports: []
+
+  nginx:
+    ports:
+      - "8080:80"
+    environment:
+      - DOMAIN=pole-emploi.guiguilab.local
+    volumes:
+      - ./infra/nginx/nginx.local.conf:/etc/nginx/conf.d/default.conf:ro
+
+  certbot:
+    image: alpine:latest
+    entrypoint: ["echo", "Certbot disabled for local deployment"]
+    restart: "no"
+
+volumes:
+  certbot_webroot:

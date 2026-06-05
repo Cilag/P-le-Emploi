@@ -1,17 +1,21 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.auth import get_current_user
 from app.db.session import get_db
 from app.models.lettre import Lettre
 from app.models.offre import Offre
-from app.schemas.lettre import LettreRead, LettreUpdate, LettreGenerateRequest
-from workers_client import generate_letter_task
+from app.schemas.lettre import LettreGenerateRequest, LettreRead, LettreUpdate
 
 router = APIRouter(prefix="/lettres", tags=["lettres"])
 
 
 @router.get("", response_model=list[LettreRead])
 async def list_lettres(
+    _user: Annotated[str, Depends(get_current_user)],
     entreprise: str | None = None,
     db: AsyncSession = Depends(get_db),
 ):
@@ -22,19 +26,16 @@ async def list_lettres(
     return result.scalars().all()
 
 
-@router.get("/{lettre_id}", response_model=LettreRead)
-async def get_lettre(lettre_id: int, db: AsyncSession = Depends(get_db)):
-    lettre = await db.get(Lettre, lettre_id)
-    if not lettre:
-        raise HTTPException(status_code=404, detail="Lettre not found")
-    return lettre
-
-
 @router.post("/generate")
-async def generate_lettre(req: LettreGenerateRequest, db: AsyncSession = Depends(get_db)):
+async def generate_lettre(
+    req: LettreGenerateRequest,
+    _user: Annotated[str, Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db),
+):
     offre = await db.get(Offre, req.offre_id)
     if not offre:
         raise HTTPException(status_code=404, detail="Offre not found")
+    from app.workers_client import generate_letter_task
     task = generate_letter_task.apply_async(
         kwargs={"offre_id": req.offre_id, "force_regenerate": req.force_regenerate},
         queue="ai",
@@ -43,7 +44,10 @@ async def generate_lettre(req: LettreGenerateRequest, db: AsyncSession = Depends
 
 
 @router.get("/generate/{task_id}")
-async def get_generation_status(task_id: str):
+async def get_generation_status(
+    task_id: str,
+    _user: Annotated[str, Depends(get_current_user)],
+):
     from app.workers_client import get_celery_app
     result = get_celery_app().AsyncResult(task_id)
     return {
@@ -54,7 +58,12 @@ async def get_generation_status(task_id: str):
 
 
 @router.put("/{lettre_id}", response_model=LettreRead)
-async def update_lettre(lettre_id: int, data: LettreUpdate, db: AsyncSession = Depends(get_db)):
+async def update_lettre(
+    lettre_id: int,
+    data: LettreUpdate,
+    _user: Annotated[str, Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db),
+):
     lettre = await db.get(Lettre, lettre_id)
     if not lettre:
         raise HTTPException(status_code=404, detail="Lettre not found")
@@ -65,9 +74,15 @@ async def update_lettre(lettre_id: int, data: LettreUpdate, db: AsyncSession = D
 
 
 @router.get("/{lettre_id}/pdf")
-async def download_pdf(lettre_id: int, db: AsyncSession = Depends(get_db)):
+async def download_pdf(
+    lettre_id: int,
+    _user: Annotated[str, Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db),
+):
     from fastapi.responses import Response
+
     from app.services.pdf_generator import generate_letter_pdf
+
     lettre = await db.get(Lettre, lettre_id)
     if not lettre:
         raise HTTPException(status_code=404, detail="Lettre not found")
@@ -85,10 +100,26 @@ async def download_pdf(lettre_id: int, db: AsyncSession = Depends(get_db)):
 
 
 @router.get("/entreprise/{entreprise_name}", response_model=list[LettreRead])
-async def get_lettres_by_entreprise(entreprise_name: str, db: AsyncSession = Depends(get_db)):
+async def get_lettres_by_entreprise(
+    entreprise_name: str,
+    _user: Annotated[str, Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db),
+):
     result = await db.execute(
         select(Lettre)
         .where(Lettre.entreprise.ilike(f"%{entreprise_name}%"))
         .order_by(Lettre.version.desc())
     )
     return result.scalars().all()
+
+
+@router.get("/{lettre_id}", response_model=LettreRead)
+async def get_lettre(
+    lettre_id: int,
+    _user: Annotated[str, Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db),
+):
+    lettre = await db.get(Lettre, lettre_id)
+    if not lettre:
+        raise HTTPException(status_code=404, detail="Lettre not found")
+    return lettre

@@ -25,5 +25,14 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     upload_dir: str = "/app/uploads"
 
+    # Auth — set API_USERNAME and API_PASSWORD_HASH (bcrypt) in prod
+    api_username: str = "admin"
+    # Default hash for "changeme" — MUST be overridden in production via env
+    api_password_hash: str = "$2b$12$MEoQRa.2zmSRdrG/SuWQyOeYG5v2xM.GDPLK3rCIioU.vvHZ9OGUG"
+    access_token_expire_minutes: int = 480  # 8 hours
+
+    # User's own email — used to validate audit report recipients (SEC-02)
+    user_email: str = ""
+
 
 settings = Settings()

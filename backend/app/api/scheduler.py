@@ -1,9 +1,14 @@
 """Scheduler management API — lets the frontend configure Celery Beat schedules."""
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, EmailStr
-import redis
 import json
 import os
+from typing import Annotated
+
+import redis
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, EmailStr
+
+from app.config import settings
+from app.core.auth import get_current_user
 
 router = APIRouter(prefix="/api/scheduler", tags=["scheduler"])
 
@@ -17,7 +22,7 @@ class SchedulerConfig(BaseModel):
 
 
 @router.get("/cv-audit", response_model=SchedulerConfig)
-async def get_cv_audit_config():
+async def get_cv_audit_config(_user: Annotated[str, Depends(get_current_user)]):
     raw = _redis.get(SCHEDULER_CONFIG_KEY)
     if not raw:
         return SchedulerConfig(
@@ -28,9 +33,20 @@ async def get_cv_audit_config():
 
 
 @router.put("/cv-audit", response_model=SchedulerConfig)
-async def update_cv_audit_config(config: SchedulerConfig):
+async def update_cv_audit_config(
+    config: SchedulerConfig,
+    _user: Annotated[str, Depends(get_current_user)],
+):
     parts = config.cron.split()
     if len(parts) != 5:
         raise HTTPException(status_code=422, detail="cron must have 5 fields: minute hour day month dow")
+
+    # SEC-02: audit recipient must match configured user email
+    if settings.user_email and str(config.recipient) != settings.user_email:
+        raise HTTPException(
+            status_code=403,
+            detail="Scheduler recipient must be the authenticated user's email address.",
+        )
+
     _redis.set(SCHEDULER_CONFIG_KEY, config.model_dump_json())
     return config

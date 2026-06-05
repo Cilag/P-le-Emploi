@@ -6,6 +6,8 @@ services:
     build:
       target: prod
     restart: always
+    # SEC-05: port 8000 must NOT be exposed in prod — traffic goes through nginx only
+    ports: []
 
   frontend:
     build:

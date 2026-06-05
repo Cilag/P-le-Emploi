@@ -1,6 +1,7 @@
-from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
+
+from pydantic import BaseModel, EmailStr
 
 
 class CandidatureCreate(BaseModel):
@@ -26,7 +27,7 @@ class CandidatureRead(BaseModel):
 
 class SendEmailRequest(BaseModel):
     candidature_id: int
-    destinataire: str
+    destinataire: EmailStr
     sujet: Optional[str] = None
 
 

@@ -1,6 +1,7 @@
-from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
+
+from pydantic import BaseModel, EmailStr
 
 
 class CVRead(BaseModel):
@@ -15,7 +16,7 @@ class CVRead(BaseModel):
 
 
 class AuditConfig(BaseModel):
-    email_destination: str
+    email_destination: EmailStr
     jour_execution: int = 1
 
 

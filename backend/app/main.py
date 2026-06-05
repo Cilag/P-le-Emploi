@@ -34,6 +34,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+if settings.app_env == "production":
+    app.docs_url = None
+    app.redoc_url = None
+
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 

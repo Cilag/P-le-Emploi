@@ -22,11 +22,12 @@ async def lifespan(app: FastAPI):
     yield
 
 
+_is_prod = settings.app_env == "production"
 app = FastAPI(
     title="Pôle Emploi — Assistant de Candidature",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    docs_url=None if _is_prod else "/docs",
+    redoc_url=None if _is_prod else "/redoc",
     lifespan=lifespan,
 )
 

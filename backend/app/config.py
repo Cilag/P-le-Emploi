@@ -13,8 +13,7 @@ class Settings(BaseSettings):
 
     allowed_origins: list[str] = ["http://localhost:3000"]
 
-    ollama_host: str = "http://ollama:11434"
-    ollama_model: str = "mistral:7b"
+    gemini_api_key: str = ""
     francetravail_client_id: str = ""
     francetravail_client_secret: str = ""
 

@@ -22,4 +22,6 @@ CMD ["celery", "-A", "tasks", "worker", "--loglevel=info", "--queues=scraping,de
 
 # ── Celery Beat (scheduler) ──────────────────────────────────────────────────
 FROM base AS scheduler
-CMD ["celery", "-A", "tasks", "beat", "--loglevel=info", "--scheduler", "celery.beat:PersistentScheduler"]
+# Create a dedicated data dir owned by worker so named-volume mounts inherit the right permissions
+RUN mkdir -p /app/celerybeat
+CMD ["celery", "-A", "tasks", "beat", "--loglevel=info", "--scheduler", "celery.beat:PersistentScheduler", "--schedule=/app/celerybeat/celerybeat-schedule"]

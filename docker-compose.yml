@@ -104,7 +104,7 @@ services:
         condition: service_healthy
     volumes:
       - ./workers:/app
-      - scheduler_data:/app/celerybeat-schedule
+      - scheduler_data:/app/celerybeat
     networks:
       - internal
 

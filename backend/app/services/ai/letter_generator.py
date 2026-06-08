@@ -1,33 +1,23 @@
 import json
-import httpx
+import google.generativeai as genai
 from app.config import settings
 
+_GEMINI_MODEL = "gemini-1.5-flash"
 
-def _ollama_chat(system_prompt: str, user_prompt: str, expect_json: bool = False) -> str:
-    payload = {
-        "model": settings.ollama_model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        "stream": False,
-        **({"format": "json"} if expect_json else {}),
-    }
-    try:
-        resp = httpx.post(
-            f"{settings.ollama_host}/api/chat",
-            json=payload,
-            timeout=120.0,
-        )
-        resp.raise_for_status()
-        return resp.json()["message"]["content"]
-    except httpx.ConnectError:
+
+def _gemini_chat(system_prompt: str, user_prompt: str) -> str:
+    if not settings.gemini_api_key:
         raise RuntimeError(
-            f"Ollama est inaccessible ({settings.ollama_host}). "
-            "Vérifiez que le service Ollama est démarré et que OLLAMA_HOST est correct."
+            "GEMINI_API_KEY est absent ou vide. "
+            "Ajoutez votre clé dans le fichier .env (voir .env.example)."
         )
-    except httpx.HTTPStatusError as e:
-        raise RuntimeError(f"Erreur Ollama HTTP {e.response.status_code}: {e.response.text[:200]}")
+    genai.configure(api_key=settings.gemini_api_key)
+    model = genai.GenerativeModel(
+        _GEMINI_MODEL,
+        system_instruction=system_prompt,
+    )
+    response = model.generate_content(user_prompt)
+    return response.text
 
 
 def generate_cover_letter(
@@ -64,7 +54,7 @@ Règles :
 
 Retourne uniquement le texte de la lettre, sans balises ni méta-commentaires."""
 
-    return _ollama_chat(system_prompt, user_prompt)
+    return _gemini_chat(system_prompt, user_prompt)
 
 
 def generate_cv_audit(cv_text: str, offres_recentes: list[str] | None = None) -> dict:
@@ -96,7 +86,7 @@ Fournis ton analyse au format JSON strict avec ces champs :
   "resume_executif": "..."
 }}"""
 
-    text = _ollama_chat(system_prompt, user_prompt, expect_json=True)
+    text = _gemini_chat(system_prompt, user_prompt)
     start = text.find("{")
     end = text.rfind("}") + 1
     if start >= 0 and end > start:

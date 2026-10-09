@@ -44,7 +44,8 @@ class FranceTravailScraper(BaseScraper):
                 headers={"Authorization": f"Bearer {token}"},
                 params=params,
             )
-            if resp.status_code != 200:
+            # L'API France Travail répond 206 Partial Content sur les résultats paginés (cas normal).
+            if resp.status_code not in (200, 206):
                 return []
 
             data = resp.json()

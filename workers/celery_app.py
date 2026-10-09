@@ -5,7 +5,13 @@ from celery.schedules import crontab
 BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://redis:6379/0")
 RESULT_BACKEND = os.environ.get("CELERY_RESULT_BACKEND", "redis://redis:6379/1")
 
-app = Celery("pole_emploi", broker=BROKER_URL, backend=RESULT_BACKEND)
+app = Celery(
+    "pole_emploi",
+    broker=BROKER_URL,
+    backend=RESULT_BACKEND,
+    # Fix: sans include=, le worker n'enregistre AUCUNE tâche (tasks/__init__ n'importe pas les modules).
+    include=["tasks.ai", "tasks.cv_audit", "tasks.scraping"],
+)
 
 app.conf.update(
     task_serializer="json",

@@ -1,0 +1,8 @@
+.git
+.github
+frontend
+docs
+infra
+**/__pycache__
+**/*.pyc
+.env

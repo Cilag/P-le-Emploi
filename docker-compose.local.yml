@@ -53,10 +53,13 @@ services:
     build:
       context: ./frontend
       target: prod
+      args:
+        # Chemin relatif : le nginx du stack route /api/ -> backend, quel que soit l'hôte.
+        NEXT_PUBLIC_API_URL: /api
     restart: always
     env_file: .env
     environment:
-      NEXT_PUBLIC_API_URL: http://pole-emploi.guiguilab.local/api
+      NEXT_PUBLIC_API_URL: /api
     depends_on:
       - backend
     networks:
@@ -64,10 +67,14 @@ services:
 
   worker:
     build:
-      context: ./workers
+      context: .
+      dockerfile: workers/Dockerfile
       target: worker
     restart: always
     env_file: .env
+    environment:
+      # Voir backend/app/db/session.py : boucle par tache Celery.
+      - DB_DISABLE_POOL=1
     depends_on:
       db:
         condition: service_healthy
@@ -78,10 +85,14 @@ services:
 
   scheduler:
     build:
-      context: ./workers
+      context: .
+      dockerfile: workers/Dockerfile
       target: scheduler
     restart: always
     env_file: .env
+    environment:
+      # Voir backend/app/db/session.py : boucle par tache Celery.
+      - DB_DISABLE_POOL=1
     command: ["celery", "-A", "tasks", "beat", "--loglevel=info",
               "--scheduler", "celery.beat:PersistentScheduler",
               "--schedule", "/app/celery-data/celerybeat-schedule"]

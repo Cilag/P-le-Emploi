@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getCandidatures, updateCandidature, exportCandidatures, postuler, marquerEnvoyee, updateOffreEmail, downloadFile, errorMessage, type PostulerResult, type Candidature } from "@/lib/api";
+import { getCandidatures, updateCandidature, exportCandidatures, postuler, marquerEnvoyee, updateOffreEmail, downloadFile, copierTexte, errorMessage, type PostulerResult, type Candidature } from "@/lib/api";
 import toast from "react-hot-toast";
 
 const STATUTS = ["en_attente", "envoyee", "refusee", "entretien", "acceptee"];
@@ -144,7 +144,7 @@ export default function ApplicationsPage() {
             <p className="text-sm text-gray-600">Ouvrez l&apos;offre, déposez la lettre et le CV, puis confirmez ici.</p>
             <div className="flex flex-wrap gap-2">
               <a href={kit.r.lien} target="_blank" rel="noopener noreferrer" className="bg-primary-600 text-white px-3 py-2 rounded-lg text-sm">Ouvrir l&apos;offre</a>
-              <button onClick={() => navigator.clipboard.writeText(kit.r.lettre_texte).then(() => toast.success("Lettre copiée"))} className="border px-3 py-2 rounded-lg text-sm">Copier la lettre</button>
+              <button onClick={() => copierTexte(kit.r.lettre_texte).then(() => toast.success("Lettre copiée"), () => toast.error("Copie impossible : sélectionnez le texte manuellement"))} className="border px-3 py-2 rounded-lg text-sm">Copier la lettre</button>
               <button onClick={() => telecharger(`/lettres/${kit.r.lettre_id}/pdf`, `lettre_${kit.c.offre_entreprise ?? kit.c.id}.pdf`)} className="border px-3 py-2 rounded-lg text-sm">Télécharger la lettre (PDF)</button>
               <button onClick={() => telecharger("/cv/actif/fichier", "CV.pdf")} className="border px-3 py-2 rounded-lg text-sm">Télécharger le CV</button>
             </div>

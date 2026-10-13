@@ -38,24 +38,30 @@ export default function JobsPage() {
     onError: (e) => toast.error(errorMessage(e)),
   });
 
-  const { data: genStatus } = useQuery({
+  const { data: genStatus, isError: genIsError, error: genError } = useQuery({
     queryKey: ["generation", generation?.taskId],
     queryFn: () => getGenerationStatus(generation!.taskId),
     enabled: !!generation,
-    refetchInterval: (q) => (["SUCCESS", "FAILURE"].includes(q.state.data?.status ?? "") ? false : 3000),
+    refetchInterval: (q) => (q.state.status === "error" || (q.state.data && !["PENDING", "STARTED", "RETRY"].includes(q.state.data.status)) ? false : 3000),
   });
 
   useEffect(() => {
-    if (!generation || !genStatus) return;
+    if (!generation) return;
+    if (genIsError) {
+      toast.error("Suivi de la génération impossible : " + errorMessage(genError));
+      setGeneration(null);
+      return;
+    }
+    if (!genStatus) return;
     if (genStatus.status === "SUCCESS") {
       toast.success(`Lettre prête pour « ${generation.titre} » — voir Candidatures`);
       qc.invalidateQueries({ queryKey: ["candidatures"] });
       setGeneration(null);
-    } else if (genStatus.status === "FAILURE") {
-      toast.error(`Échec de génération : ${genStatus.error ?? "erreur inconnue"}`);
+    } else if (!["PENDING", "STARTED", "RETRY"].includes(genStatus.status)) {
+      toast.error(`Échec de génération : ${genStatus.error ?? genStatus.status}`);
       setGeneration(null);
     }
-  }, [genStatus, generation, qc]);
+  }, [genStatus, genIsError, genError, generation, qc]);
 
   const { data: offres = [], isLoading, isError, error } = useQuery({
     queryKey: ["offres", filters],

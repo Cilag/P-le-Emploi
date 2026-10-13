@@ -189,3 +189,19 @@ export const downloadFile = async (path: string, filename: string) => {
   a.click();
   URL.revokeObjectURL(url);
 };
+
+export const copierTexte = async (texte: string) => {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(texte);
+    return;
+  }
+  const ta = document.createElement("textarea");
+  ta.value = texte;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  const ok = document.execCommand("copy");
+  document.body.removeChild(ta);
+  if (!ok) throw new Error("copie impossible");
+};

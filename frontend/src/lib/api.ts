@@ -1,4 +1,5 @@
 import axios from "axios";
+import { clearToken, getToken, setToken } from "./auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -6,6 +7,38 @@ export const api = axios.create({
   baseURL: API_URL,
   timeout: 30000,
 });
+
+api.interceptors.request.use((config) => {
+  const token = getToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+api.interceptors.response.use(
+  (r) => r,
+  (error) => {
+    if (error?.response?.status === 401 && typeof window !== "undefined" && window.location.pathname !== "/login") {
+      clearToken();
+      window.location.href = "/login";
+    }
+    return Promise.reject(error);
+  },
+);
+
+export const login = async (username: string, password: string) => {
+  const r = await api.post<{ access_token: string }>(
+    "/auth/token",
+    new URLSearchParams({ username, password }),
+    { headers: { "Content-Type": "application/x-www-form-urlencoded" } },
+  );
+  setToken(r.data.access_token);
+};
+
+export const errorMessage = (e: unknown): string => {
+  const detail = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  if (typeof detail === "string") return detail;
+  return e instanceof Error ? e.message : "Erreur inconnue";
+};
 
 export interface Offre {
   id: number;

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getOffres, launchScan, getScanStatus, getSources, type Offre, type ScanParams } from "@/lib/api";
+import { errorMessage, getOffres, launchScan, getScanStatus, getSources, type Offre, type ScanParams } from "@/lib/api";
 import toast from "react-hot-toast";
 
 const CONTRACT_TYPES = ["", "CDI", "CDD", "alternance"];
@@ -27,7 +27,7 @@ export default function JobsPage() {
   const [showScanModal, setShowScanModal] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
-  const { data: offres = [], isLoading } = useQuery({
+  const { data: offres = [], isLoading, isError, error } = useQuery({
     queryKey: ["offres", filters],
     queryFn: () => getOffres(Object.fromEntries(Object.entries(filters).filter(([, v]) => v))),
   });
@@ -114,7 +114,9 @@ export default function JobsPage() {
       </div>
 
       {/* Results */}
-      {isLoading ? (
+      {isError ? (
+        <div className="text-center py-12 text-red-600">Impossible de charger les offres : {errorMessage(error)}</div>
+      ) : isLoading ? (
         <div className="text-center py-12 text-gray-500">Chargement...</div>
       ) : offres.length === 0 ? (
         <div className="text-center py-12 text-gray-400">Aucune offre. Lancez un scan pour commencer.</div>

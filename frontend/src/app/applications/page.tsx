@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getCandidatures, updateCandidature, sendCandidatureEmail, exportCandidatures, type Candidature } from "@/lib/api";
+import { errorMessage, getCandidatures, updateCandidature, sendCandidatureEmail, exportCandidatures, type Candidature } from "@/lib/api";
 import toast from "react-hot-toast";
 
 const STATUTS = ["en_attente", "envoyee", "refusee", "entretien", "acceptee"];
@@ -20,7 +20,7 @@ export default function ApplicationsPage() {
   const [emailAddr, setEmailAddr] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
-  const { data: candidatures = [], isLoading } = useQuery({
+  const { data: candidatures = [], isLoading, isError, error } = useQuery({
     queryKey: ["candidatures", filterStatut],
     queryFn: () => getCandidatures(filterStatut || undefined),
   });
@@ -89,7 +89,9 @@ export default function ApplicationsPage() {
         </div>
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <div className="text-center py-12 text-red-600">Impossible de charger les candidatures : {errorMessage(error)}</div>
+      ) : isLoading ? (
         <div className="text-center py-12 text-gray-500">Chargement...</div>
       ) : candidatures.length === 0 ? (
         <div className="text-center py-12 text-gray-400">Aucune candidature en cours.</div>

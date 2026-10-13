@@ -1,5 +1,7 @@
+"use client";
 import Link from "next/link";
 import { Briefcase } from "lucide-react";
+import { clearToken } from "@/lib/auth";
 
 const links = [
   { href: "/jobs", label: "Offres" },
@@ -23,6 +25,12 @@ export function NavBar() {
               {label}
             </Link>
           ))}
+          <button
+            onClick={() => { clearToken(); window.location.href = "/login"; }}
+            className="text-gray-400 hover:text-red-600 text-sm font-medium transition-colors"
+          >
+            Déconnexion
+          </button>
         </div>
       </div>
     </nav>

@@ -24,7 +24,13 @@ from app.schemas.candidature import (
     PreparerRequest,
     SendEmailRequest,
 )
-from app.services.candidatures import EnvoiEchoue, SmtpNonConfigure, envoyer_candidature_par_email
+from app.services.candidatures import (
+    CvIntrouvable,
+    DejaEnvoyee,
+    EnvoiEchoue,
+    SmtpNonConfigure,
+    envoyer_candidature_par_email,
+)
 from app.services.pdf_generator import generate_letter_pdf
 
 router = APIRouter(prefix="/candidatures", tags=["candidatures"])
@@ -136,6 +142,10 @@ async def send_candidature_email(
 
     try:
         await envoyer_candidature_par_email(db, candidature, req.destinataire, req.sujet)
+    except DejaEnvoyee:
+        raise HTTPException(status_code=409, detail="Candidature déjà envoyée")
+    except CvIntrouvable:
+        raise HTTPException(status_code=409, detail="CV introuvable, téléversez-le à nouveau")
     except SmtpNonConfigure:
         raise HTTPException(status_code=503, detail="SMTP non configuré")
     except EnvoiEchoue as e:
@@ -161,6 +171,10 @@ async def postuler(
             raise HTTPException(status_code=409, detail="Candidature déjà envoyée")
         try:
             await envoyer_candidature_par_email(db, candidature, offre.email_contact)
+        except DejaEnvoyee:
+            raise HTTPException(status_code=409, detail="Candidature déjà envoyée")
+        except CvIntrouvable:
+            raise HTTPException(status_code=409, detail="CV introuvable, téléversez-le à nouveau")
         except SmtpNonConfigure:
             raise HTTPException(status_code=503, detail="SMTP non configuré")
         except EnvoiEchoue as e:

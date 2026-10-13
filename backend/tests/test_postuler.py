@@ -2,6 +2,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.services.candidatures import DejaEnvoyee, envoyer_candidature_par_email
+
 from app.config import settings
 from app.models.candidature import Candidature
 from app.models.cv import CV
@@ -26,6 +28,14 @@ async def _candidature(session_factory, email=None, avec_lettre=True, statut="en
         return c.id, o.id
 
 
+async def _cv_actif(session_factory, tmp_path):
+    f = tmp_path / "cv.pdf"
+    f.write_bytes(b"%PDF-1.4 cv")
+    async with session_factory() as db:
+        db.add(CV(filename="cv.pdf", filepath=str(f), texte_extrait="CV", actif=True))
+        await db.commit()
+
+
 @pytest.mark.asyncio
 async def test_postuler_sans_lettre_409(api, session_factory):
     cid, _ = await _candidature(session_factory, avec_lettre=False)
@@ -46,15 +56,17 @@ async def test_postuler_mode_site(api, session_factory):
 
 
 @pytest.mark.asyncio
-async def test_postuler_mode_email(api, session_factory, monkeypatch):
+async def test_postuler_mode_email(api, session_factory, monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "smtp_host", "smtp.test")
     monkeypatch.setattr(settings, "resend_api_key", "")
     cid, _ = await _candidature(session_factory, email="rh@acme.fr")
+    await _cv_actif(session_factory, tmp_path)
     with patch("app.services.candidatures.send_email_with_attachments", return_value=True) as send:
         r = await api.post(f"/candidatures/{cid}/postuler")
     assert r.json() == {"mode": "email", "destinataire": "rh@acme.fr"}
     assert send.call_args.args[0] == "rh@acme.fr"
-    assert any(name.endswith(".pdf") for name, _ in send.call_args.args[3])
+    assert any(name.startswith("lettre_") for name, _ in send.call_args.args[3])
+    assert ("cv.pdf", b"%PDF-1.4 cv") in send.call_args.args[3]
     async with session_factory() as db:
         c = await db.get(Candidature, cid)
     assert c.statut == "envoyee" and c.envoyee_le is not None
@@ -80,12 +92,45 @@ async def test_postuler_smtp_absent_503(api, session_factory, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_postuler_envoi_echoue_500(api, session_factory, monkeypatch):
+async def test_postuler_envoi_echoue_500(api, session_factory, monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "smtp_host", "smtp.test")
     cid, _ = await _candidature(session_factory, email="rh@acme.fr")
+    await _cv_actif(session_factory, tmp_path)
     with patch("app.services.candidatures.send_email_with_attachments", return_value=False):
         r = await api.post(f"/candidatures/{cid}/postuler")
     assert r.status_code == 500
+    async with session_factory() as db:
+        c = await db.get(Candidature, cid)
+    assert c.statut == "en_attente" and c.envoyee_le is None
+
+
+@pytest.mark.asyncio
+async def test_postuler_sans_cv_409(api, session_factory, monkeypatch):
+    monkeypatch.setattr(settings, "smtp_host", "smtp.test")
+    cid, _ = await _candidature(session_factory, email="rh@acme.fr")
+    with patch("app.services.candidatures.send_email_with_attachments", return_value=True) as send:
+        r = await api.post(f"/candidatures/{cid}/postuler")
+    assert r.status_code == 409 and "CV introuvable" in r.json()["detail"]
+    send.assert_not_called()
+    async with session_factory() as db:
+        assert (await db.get(Candidature, cid)).statut == "en_attente"
+
+
+@pytest.mark.asyncio
+async def test_envoi_reservation_atomique(session_factory, monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "smtp_host", "smtp.test")
+    cid, _ = await _candidature(session_factory, email="rh@acme.fr")
+    await _cv_actif(session_factory, tmp_path)
+    async with session_factory() as db1:
+        c = await db1.get(Candidature, cid)
+        async with session_factory() as db2:
+            (await db2.get(Candidature, cid)).statut = "envoyee"
+            await db2.commit()
+        assert c.statut == "en_attente"
+        with patch("app.services.candidatures.send_email_with_attachments", return_value=True) as send:
+            with pytest.raises(DejaEnvoyee):
+                await envoyer_candidature_par_email(db1, c, "rh@acme.fr")
+        send.assert_not_called()
 
 
 @pytest.mark.asyncio

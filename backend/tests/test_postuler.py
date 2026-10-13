@@ -92,6 +92,34 @@ async def test_postuler_smtp_absent_503(api, session_factory, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_postuler_mode_site_force_meme_avec_email(api, session_factory, monkeypatch):
+    monkeypatch.setattr(settings, "smtp_host", "")
+    monkeypatch.setattr(settings, "resend_api_key", "")
+    cid, _ = await _candidature(session_factory, email="rh@acme.fr")
+    with patch("app.services.candidatures.send_email_with_attachments", return_value=True) as send:
+        r = await api.post(f"/candidatures/{cid}/postuler", params={"mode": "site"})
+    body = r.json()
+    assert r.status_code == 200
+    assert body["mode"] == "site" and body["lien"] == "https://acme/job" and body["lettre_texte"] == "Ma lettre"
+    send.assert_not_called()
+    async with session_factory() as db:
+        assert (await db.get(Candidature, cid)).statut == "en_attente"
+
+
+@pytest.mark.asyncio
+async def test_postuler_mode_site_sans_lettre_409(api, session_factory):
+    cid, _ = await _candidature(session_factory, email="rh@acme.fr", avec_lettre=False)
+    r = await api.post(f"/candidatures/{cid}/postuler", params={"mode": "site"})
+    assert r.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_postuler_mode_invalide_422(api, session_factory):
+    cid, _ = await _candidature(session_factory)
+    assert (await api.post(f"/candidatures/{cid}/postuler", params={"mode": "email"})).status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_postuler_envoi_echoue_500(api, session_factory, monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "smtp_host", "smtp.test")
     cid, _ = await _candidature(session_factory, email="rh@acme.fr")
@@ -191,3 +219,13 @@ async def test_fichier_cv_actif(api, session_factory, tmp_path):
         await db.commit()
     r = await api.get("/cv/actif/fichier")
     assert r.status_code == 200 and r.content == b"%PDF-1.4 cv"
+
+
+def test_smtp_avec_timeout(monkeypatch):
+    from app.services import email_service
+
+    monkeypatch.setattr(settings, "resend_api_key", "")
+    monkeypatch.setattr(settings, "smtp_host", "smtp.test")
+    with patch("app.services.email_service.smtplib.SMTP") as smtp:
+        assert email_service.send_email_with_attachments("rh@acme.fr", "s", "b") is True
+    assert smtp.call_args.kwargs["timeout"] == 30

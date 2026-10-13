@@ -40,12 +40,31 @@ async def test_genere_avec_le_cv_actif(session_factory):
 async def test_reutilise_derniere_version_sans_planter(session_factory):
     async with session_factory() as db:
         o = await _offre(db)
-        db.add_all([Lettre(entreprise="Acme", contenu="v1", version=1),
-                    Lettre(entreprise="Acme", contenu="v2", version=2)])
+        db.add_all([Lettre(offre_id=o.id, entreprise="Acme", contenu="v1", version=1),
+                    Lettre(offre_id=o.id, entreprise="Acme", contenu="v2", version=2)])
         await db.commit()
         out = await generer_lettre_pour_offre(db, o.id, generate=lambda **kw: pytest.fail("ne doit pas générer"))
         lettre = await db.get(Lettre, out["lettre_id"])
     assert out["reused"] is True and lettre.contenu == "v2"
+
+
+@pytest.mark.asyncio
+async def test_ne_reutilise_pas_la_lettre_d_une_autre_offre_de_la_meme_entreprise(session_factory):
+    appels = []
+
+    def fake(**kw):
+        appels.append(kw)
+        return "Lettre DevOps"
+
+    async with session_factory() as db:
+        autre = await _offre(db, titre="Comptable", entreprise="Inconnu")
+        o = await _offre(db, titre="DevOps", entreprise="Inconnu")
+        db.add(Lettre(offre_id=autre.id, entreprise="Inconnu", contenu="Lettre comptable", version=1))
+        await db.commit()
+        out = await generer_lettre_pour_offre(db, o.id, generate=fake)
+        lettre = await db.get(Lettre, out["lettre_id"])
+    assert out["reused"] is False and len(appels) == 1 and appels[0]["offre_titre"] == "DevOps"
+    assert lettre.offre_id == o.id and lettre.contenu == "Lettre DevOps" and lettre.version == 2
 
 
 @pytest.mark.asyncio
@@ -109,6 +128,18 @@ def test_backend_lit_les_resultats_dans_celery_result_backend(monkeypatch):
 
     monkeypatch.setenv("CELERY_RESULT_BACKEND", "redis://redis:6379/1")
     monkeypatch.setenv("CELERY_BROKER_URL", "redis://redis:6379/0")
+    wc = importlib.reload(wc)
+    assert wc._celery.conf.result_backend == "redis://redis:6379/1"
+    assert wc._celery.conf.broker_url == "redis://redis:6379/0"
+
+
+def test_backend_retombe_sur_les_defauts_du_worker(monkeypatch):
+    import importlib
+
+    import app.workers_client as wc
+
+    monkeypatch.delenv("CELERY_RESULT_BACKEND", raising=False)
+    monkeypatch.delenv("CELERY_BROKER_URL", raising=False)
     wc = importlib.reload(wc)
     assert wc._celery.conf.result_backend == "redis://redis:6379/1"
     assert wc._celery.conf.broker_url == "redis://redis:6379/0"

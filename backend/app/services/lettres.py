@@ -1,5 +1,5 @@
 """Génération d'une lettre pour une offre (appelée par la tâche Celery generate_letter)."""
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.candidature import Candidature
@@ -20,18 +20,26 @@ async def generer_lettre_pour_offre(
     if not offre:
         return {"error": "Offre not found"}
 
-    derniere = (
-        await db.execute(
-            select(Lettre)
-            .where(Lettre.entreprise == offre.entreprise)
-            .order_by(Lettre.version.desc())
-            .limit(1)
-        )
-    ).scalars().first()
+    # Réutilisation limitée aux lettres écrites pour CETTE offre : une lettre d'une autre offre
+    # de la même entreprise (ex. offres FT anonymes « Inconnu ») ne doit jamais être envoyée.
+    existante = None
+    if not force_regenerate:
+        existante = (
+            await db.execute(
+                select(Lettre)
+                .where(Lettre.offre_id == offre_id)
+                .order_by(Lettre.version.desc(), Lettre.id.desc())
+                .limit(1)
+            )
+        ).scalars().first()
 
-    if derniere and not force_regenerate:
-        lettre, reused = derniere, True
+    if existante:
+        lettre, reused = existante, True
     else:
+        # Numérotation des versions par entreprise (cohérente avec les données existantes).
+        version_max = (
+            await db.execute(select(func.max(Lettre.version)).where(Lettre.entreprise == offre.entreprise))
+        ).scalar()
         cv = (await db.execute(select(CV).where(CV.actif == True).limit(1))).scalars().first()  # noqa: E712
         contenu = generate(
             cv_text=cv.texte_extrait if cv and cv.texte_extrait else "CV non disponible.",
@@ -44,7 +52,7 @@ async def generer_lettre_pour_offre(
             offre_id=offre_id,
             entreprise=offre.entreprise,
             contenu=contenu,
-            version=(derniere.version if derniere else 0) + 1,
+            version=(version_max or 0) + 1,
         )
         db.add(lettre)
         await db.flush()

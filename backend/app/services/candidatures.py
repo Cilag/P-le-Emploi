@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.concurrency import run_in_threadpool
 
 from app.config import settings
 from app.models.candidature import Candidature
@@ -63,7 +64,10 @@ async def envoyer_candidature_par_email(
         raise DejaEnvoyee()
     await db.refresh(candidature)
 
-    if not send_email_with_attachments(destinataire, sujet or f"Candidature — {titre}", body, attachments):
+    # Envoi bloquant (smtplib) hors de la boucle d'événements.
+    if not await run_in_threadpool(
+        send_email_with_attachments, destinataire, sujet or f"Candidature — {titre}", body, attachments
+    ):
         await db.execute(
             update(Candidature).where(Candidature.id == candidature.id).values(statut=precedent, envoyee_le=None)
         )

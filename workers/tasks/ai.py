@@ -24,4 +24,8 @@ def generate_letter(self, offre_id: int, force_regenerate: bool = False, candida
         async with AsyncSessionLocal() as db:
             return await generer_lettre_pour_offre(db, offre_id, force_regenerate, candidature_id)
 
-    return run_async(_run())
+    result = run_async(_run())
+    if "error" in result:
+        # Échec visible dans l'UI (statut FAILURE + message) au lieu d'un faux SUCCESS.
+        raise ValueError(result["error"])
+    return result

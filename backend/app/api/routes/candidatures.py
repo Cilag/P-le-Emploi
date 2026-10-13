@@ -2,7 +2,7 @@ import io
 import os
 import zipfile
 from datetime import datetime, timezone
-from typing import Annotated, Optional
+from typing import Annotated, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import Response
@@ -158,7 +158,9 @@ async def postuler(
     candidature_id: int,
     _user: Annotated[str, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
+    mode: Literal["auto", "site"] = Query("auto"),
 ):
+    """mode=site : renvoie toujours le kit « dépôt sur le site » (repli si SMTP non configuré)."""
     candidature = await db.get(Candidature, candidature_id)
     if not candidature:
         raise HTTPException(status_code=404, detail="Candidature not found")
@@ -166,7 +168,7 @@ async def postuler(
     if not lettre:
         raise HTTPException(status_code=409, detail="Générez d'abord la lettre")
     offre = await db.get(Offre, candidature.offre_id)
-    if offre.email_contact:
+    if mode == "auto" and offre.email_contact:
         if candidature.statut == "envoyee":
             raise HTTPException(status_code=409, detail="Candidature déjà envoyée")
         try:

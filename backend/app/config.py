@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     allowed_origins: list[str] = ["http://localhost:3000"]
 
     gemini_api_key: str = ""
+    # LLM des lettres : "hermes" (proxy LAN d'Hermes) ou "gemini"
+    llm_provider: str = "hermes"
+    hermes_url: str = ""
+    hermes_token: str = ""
     francetravail_client_id: str = ""
     francetravail_client_secret: str = ""
 

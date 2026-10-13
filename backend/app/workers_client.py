@@ -1,7 +1,16 @@
-from celery import Celery
-from app.config import settings
+import os
 
-_celery = Celery(broker=settings.redis_url, backend=settings.redis_url)
+from celery import Celery
+
+# Mêmes URL et mêmes défauts que le worker (workers/celery_app.py) : sinon les résultats écrits
+# par le worker sont introuvables.
+DEFAULT_BROKER_URL = "redis://redis:6379/0"
+DEFAULT_RESULT_BACKEND = "redis://redis:6379/1"
+
+_celery = Celery(
+    broker=os.environ.get("CELERY_BROKER_URL") or DEFAULT_BROKER_URL,
+    backend=os.environ.get("CELERY_RESULT_BACKEND") or DEFAULT_RESULT_BACKEND,
+)
 
 
 def _task(name: str):

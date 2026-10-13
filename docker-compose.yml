@@ -81,6 +81,8 @@ services:
       target: worker
     restart: unless-stopped
     env_file: .env
+    environment:
+      - DB_DISABLE_POOL=1
     depends_on:
       db:
         condition: service_healthy
@@ -97,6 +99,8 @@ services:
       target: scheduler
     restart: unless-stopped
     env_file: .env
+    environment:
+      - DB_DISABLE_POOL=1
     depends_on:
       db:
         condition: service_healthy

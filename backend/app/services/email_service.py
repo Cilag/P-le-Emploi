@@ -6,6 +6,8 @@ from email import encoders
 from typing import Optional
 from app.config import settings
 
+SMTP_TIMEOUT = 30  # secondes : un serveur SMTP muet ne doit pas bloquer l'envoi indéfiniment
+
 
 def send_email_with_attachments(
     to: str,
@@ -56,7 +58,7 @@ def _send_via_smtp(to: str, subject: str, body: str, attachments) -> bool:
                 part.add_header("Content-Disposition", f'attachment; filename="{filename}"')
                 msg.attach(part)
 
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=SMTP_TIMEOUT) as server:
             server.starttls()
             server.login(settings.smtp_user, settings.smtp_pass)
             server.sendmail(settings.smtp_user, to, msg.as_string())

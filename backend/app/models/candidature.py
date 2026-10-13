@@ -13,3 +13,4 @@ class Candidature(Base):
     statut: Mapped[str] = mapped_column(String(50), default="en_attente")
     cree_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     modifie_le: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    envoyee_le: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

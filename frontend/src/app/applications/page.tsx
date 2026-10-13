@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getCandidatures, updateCandidature, sendCandidatureEmail, exportCandidatures, type Candidature } from "@/lib/api";
+import { getCandidatures, updateCandidature, exportCandidatures, getLettre, postuler, marquerEnvoyee, updateOffreEmail, downloadFile, copierTexte, errorMessage, type PostulerResult, type Candidature } from "@/lib/api";
 import toast from "react-hot-toast";
 
 const STATUTS = ["en_attente", "envoyee", "refusee", "entretien", "acceptee"];
@@ -16,11 +16,9 @@ const STATUT_COLORS: Record<string, string> = {
 export default function ApplicationsPage() {
   const qc = useQueryClient();
   const [filterStatut, setFilterStatut] = useState("");
-  const [emailModal, setEmailModal] = useState<{ id: number } | null>(null);
-  const [emailAddr, setEmailAddr] = useState("");
   const [selected, setSelected] = useState<Set<number>>(new Set());
 
-  const { data: candidatures = [], isLoading } = useQuery({
+  const { data: candidatures = [], isLoading, isError, error } = useQuery({
     queryKey: ["candidatures", filterStatut],
     queryFn: () => getCandidatures(filterStatut || undefined),
   });
@@ -33,15 +31,72 @@ export default function ApplicationsPage() {
     },
   });
 
-  const sendMutation = useMutation({
-    mutationFn: ({ id, email }: { id: number; email: string }) => sendCandidatureEmail(id, email),
-    onSuccess: () => {
-      toast.success("Email envoyé !");
-      qc.invalidateQueries({ queryKey: ["candidatures"] });
-      setEmailModal(null);
+  const [kit, setKit] = useState<{ c: Candidature; r: Extract<PostulerResult, { mode: "site" }> } | null>(null);
+  const [emailRecruteur, setEmailRecruteur] = useState("");
+  const refresh = () => qc.invalidateQueries({ queryKey: ["candidatures"] });
+
+  const postulerMutation = useMutation({
+    mutationFn: (c: Candidature) =>
+      postuler(c.id)
+        .catch((e) => {
+          // SMTP non configuré : on bascule sur le kit « dépôt sur le site » (aucun envoi).
+          if ((e as { response?: { status?: number } })?.response?.status !== 503) throw e;
+          toast.error("SMTP non configuré : candidature à déposer sur le site");
+          return postuler(c.id, "site");
+        })
+        .then((r) => ({ c, r })),
+    onSuccess: ({ c, r }) => {
+      if (r.mode === "email") {
+        toast.success(`Candidature envoyée à ${r.destinataire}`);
+        refresh();
+      } else {
+        setEmailRecruteur("");
+        setKit({ c, r });
+      }
     },
-    onError: () => toast.error("Échec de l'envoi. Vérifiez la config email."),
+    onError: (e) => toast.error(errorMessage(e)),
   });
+
+  const onPostuler = async (c: Candidature) => {
+    if (c.offre_email_contact) {
+      if (!c.lettre_id) return;
+      // Validation humaine : montrer destinataire, offre et début de la lettre avant tout envoi.
+      let contenu: string;
+      try {
+        contenu = (await getLettre(c.lettre_id)).contenu;
+      } catch (e) {
+        toast.error(`Lettre introuvable, envoi annulé : ${errorMessage(e)}`);
+        return;
+      }
+      const extrait = contenu.length > 400 ? `${contenu.slice(0, 400)}…` : contenu;
+      const message =
+        `Envoyer la lettre et le CV à ${c.offre_email_contact} ?
+
+` +
+        `Offre : ${c.offre_titre ?? `#${c.offre_id}`}
+
+` +
+        `Début de la lettre :
+${extrait}`;
+      if (!window.confirm(message)) return;
+    }
+    postulerMutation.mutate(c);
+  };
+
+  const marquerMutation = useMutation({
+    mutationFn: (id: number) => marquerEnvoyee(id),
+    onSuccess: () => { toast.success("Candidature marquée envoyée"); setKit(null); refresh(); },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+
+  const emailMutation = useMutation({
+    mutationFn: ({ offreId, email }: { offreId: number; email: string }) => updateOffreEmail(offreId, email),
+    onSuccess: () => { toast.success("E-mail enregistré : « Postuler » enverra désormais par e-mail"); setKit(null); refresh(); },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+
+  const telecharger = (path: string, nom: string) =>
+    downloadFile(path, nom).catch((e) => toast.error(errorMessage(e)));
 
   const exportMutation = useMutation({
     mutationFn: () => exportCandidatures(Array.from(selected)),
@@ -89,7 +144,9 @@ export default function ApplicationsPage() {
         </div>
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <div className="text-center py-12 text-red-600">Impossible de charger les candidatures : {errorMessage(error)}</div>
+      ) : isLoading ? (
         <div className="text-center py-12 text-gray-500">Chargement...</div>
       ) : candidatures.length === 0 ? (
         <div className="text-center py-12 text-gray-400">Aucune candidature en cours.</div>
@@ -102,33 +159,36 @@ export default function ApplicationsPage() {
               selected={selected.has(c.id)}
               onToggle={() => toggleSelect(c.id)}
               onStatusChange={(statut) => updateMutation.mutate({ id: c.id, statut })}
-              onSendEmail={() => setEmailModal({ id: c.id })}
+              onPostuler={() => onPostuler(c)}
+              postulerPending={postulerMutation.isPending}
             />
           ))}
         </div>
       )}
 
-      {emailModal && (
+      {kit && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
-            <h2 className="font-bold text-lg mb-4">Envoyer la candidature par email</h2>
-            <input
-              aria-label="Email du destinataire"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 mb-4"
-              placeholder="Email destinataire..."
-              value={emailAddr}
-              onChange={(e) => setEmailAddr(e.target.value)}
-              type="email"
-            />
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setEmailModal(null)} className="px-4 py-2 text-gray-600">Annuler</button>
-              <button
-                onClick={() => sendMutation.mutate({ id: emailModal.id, email: emailAddr })}
-                disabled={sendMutation.isPending || !emailAddr}
-                className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50"
-              >
-                {sendMutation.isPending ? "Envoi..." : "Envoyer"}
-              </button>
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg shadow-xl space-y-3">
+            <h2 className="font-bold text-lg">Postuler sur le site — {kit.c.offre_titre}</h2>
+            <p className="text-sm text-gray-600">Ouvrez l&apos;offre, déposez la lettre et le CV, puis confirmez ici.</p>
+            <div className="flex flex-wrap gap-2">
+              <a href={kit.r.lien} target="_blank" rel="noopener noreferrer" className="bg-primary-600 text-white px-3 py-2 rounded-lg text-sm">Ouvrir l&apos;offre</a>
+              <button onClick={() => copierTexte(kit.r.lettre_texte).then(() => toast.success("Lettre copiée"), () => toast.error("Copie impossible : sélectionnez le texte manuellement"))} className="border px-3 py-2 rounded-lg text-sm">Copier la lettre</button>
+              <button onClick={() => telecharger(`/lettres/${kit.r.lettre_id}/pdf`, `lettre_${kit.c.offre_entreprise ?? kit.c.id}.pdf`)} className="border px-3 py-2 rounded-lg text-sm">Télécharger la lettre (PDF)</button>
+              <button onClick={() => telecharger("/cv/actif/fichier", "CV.pdf")} className="border px-3 py-2 rounded-lg text-sm">Télécharger le CV</button>
+            </div>
+            <div className="flex gap-2 pt-2 border-t">
+              <input aria-label="E-mail du recruteur" type="email" placeholder="E-mail du recruteur (si connu)"
+                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                value={emailRecruteur} onChange={(e) => setEmailRecruteur(e.target.value)} />
+              <button disabled={!emailRecruteur || emailMutation.isPending}
+                onClick={() => emailMutation.mutate({ offreId: kit.c.offre_id, email: emailRecruteur })}
+                className="border px-3 py-2 rounded-lg text-sm disabled:opacity-50">Enregistrer</button>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <button onClick={() => setKit(null)} className="px-4 py-2 text-gray-600">Fermer</button>
+              <button onClick={() => marquerMutation.mutate(kit.c.id)} disabled={marquerMutation.isPending}
+                className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50">J&apos;ai postulé</button>
             </div>
           </div>
         </div>
@@ -142,20 +202,25 @@ function CandidatureCard({
   selected,
   onToggle,
   onStatusChange,
-  onSendEmail,
+  onPostuler,
+  postulerPending,
 }: {
   candidature: Candidature;
   selected: boolean;
   onToggle: () => void;
   onStatusChange: (s: string) => void;
-  onSendEmail: () => void;
+  onPostuler: () => void;
+  postulerPending: boolean;
 }) {
   return (
     <div className={`bg-white rounded-xl border p-4 flex gap-3 items-center transition-all ${selected ? "border-primary-500" : "border-gray-100"} shadow-sm`}>
       <input type="checkbox" checked={selected} onChange={onToggle} className="w-4 h-4 accent-primary-600" aria-label={`Sélectionner candidature #${candidature.id}`} />
       <div className="flex-1">
-        <p className="text-sm text-gray-600">Offre #{candidature.offre_id}</p>
-        <p className="text-xs text-gray-400">{new Date(candidature.cree_le).toLocaleDateString("fr-FR")}</p>
+        <p className="text-sm font-medium text-gray-900">{candidature.offre_titre ?? `Offre #${candidature.offre_id}`}</p>
+        <p className="text-xs text-gray-500">
+          {candidature.offre_entreprise ?? ""} · {candidature.lettre_id ? "Lettre prête" : "Lettre en préparation"}
+          {candidature.envoyee_le ? ` · envoyée le ${new Date(candidature.envoyee_le).toLocaleDateString("fr-FR")}` : ""}
+        </p>
       </div>
       <select
         aria-label={`Statut de la candidature #${candidature.id}`}
@@ -165,8 +230,9 @@ function CandidatureCard({
       >
         {STATUTS.map((s) => <option key={s} value={s}>{s}</option>)}
       </select>
-      <button onClick={onSendEmail} className="text-sm text-primary-600 hover:underline">
-        📧 Envoyer
+      <button onClick={onPostuler} disabled={!candidature.lettre_id || postulerPending}
+        className="text-sm bg-primary-600 text-white px-3 py-1 rounded-lg hover:bg-primary-700 disabled:opacity-40">
+        Postuler
       </button>
     </div>
   );

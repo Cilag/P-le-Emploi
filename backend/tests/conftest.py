@@ -1,9 +1,10 @@
-import sys
 import os
-import types
+import sys
 
-# Make packages installed to /tmp/py_pkgs available (system site-packages is read-only)
-sys.path.insert(0, "/tmp/py_pkgs")
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import StaticPool
 
 # backend root → enables `from app.xxx` imports
 _here = os.path.dirname(__file__)
@@ -12,28 +13,50 @@ sys.path.insert(0, os.path.join(_backend, "app"))  # `from workers_client import
 sys.path.insert(0, _backend)                        # `from app.xxx import …`
 
 # Override settings BEFORE pydantic-settings reads env at first Settings() instantiation.
-# Using SQLite+aiosqlite so the FastAPI lifespan can run create_all without a real PG server.
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:////tmp/test_pe.db")
 os.environ.setdefault("REDIS_URL", "redis://localhost:6379/0")
 os.environ.setdefault("SECRET_KEY", "test-secret")
 os.environ.setdefault("CV_AUDIT_DEFAULT_RECIPIENT", "test@example.com")
 
-# ---------------------------------------------------------------------------
-# Scaffold-bug shim: backend/app/api/routes/cv.py imports from `app.core.config`
-# but the correct module is `app.config`.  Inject a compatible fake so that
-# `from app.main import app` succeeds during test collection.
-# TODO (Web Lead): fix cv.py → replace `from app.core.config import settings`
-#                  with `from app.config import settings` and `settings.UPLOAD_DIR`
-#                  with `settings.upload_dir`.
-# ---------------------------------------------------------------------------
 
-class _CvShimSettings:
-    UPLOAD_DIR = "/tmp/test_uploads"
-    upload_dir = "/tmp/test_uploads"
+@pytest_asyncio.fixture
+async def session_factory():
+    """Base SQLite en mémoire, tables créées, partagée par toutes les sessions du test."""
+    from app.db.session import Base
+    import app.models.candidature  # noqa: F401
+    import app.models.cv  # noqa: F401
+    import app.models.lettre  # noqa: F401
+    import app.models.offre  # noqa: F401
+
+    engine = create_async_engine(
+        "sqlite+aiosqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    yield async_sessionmaker(engine, expire_on_commit=False)
+    await engine.dispose()
 
 
-_app_core = types.ModuleType("app.core")
-_app_core_config = types.ModuleType("app.core.config")
-_app_core_config.settings = _CvShimSettings()
-sys.modules.setdefault("app.core", _app_core)
-sys.modules.setdefault("app.core.config", _app_core_config)
+@pytest_asyncio.fixture
+async def api(session_factory):
+    """Client HTTP authentifié sur l'app, branché sur la base de test."""
+    from app.core.auth import get_current_user
+    from app.db.session import get_db
+    from app.main import app
+
+    async def _get_db():
+        async with session_factory() as session:
+            try:
+                yield session
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+
+    app.dependency_overrides[get_db] = _get_db
+    app.dependency_overrides[get_current_user] = lambda: "admin"
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        yield client
+    app.dependency_overrides.clear()

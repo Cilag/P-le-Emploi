@@ -2,6 +2,7 @@ import os
 from typing import Annotated
 
 import magic
+from fastapi.responses import FileResponse
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -77,6 +78,17 @@ async def get_active_cv(
     if not cv:
         raise HTTPException(status_code=404, detail="No active CV found")
     return cv
+
+
+@router.get("/actif/fichier")
+async def get_active_cv_file(
+    _user: Annotated[str, Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db),
+):
+    cv = (await db.execute(select(CV).where(CV.actif == True).limit(1))).scalars().first()  # noqa: E712
+    if not cv or not os.path.exists(cv.filepath):
+        raise HTTPException(status_code=404, detail="No active CV file")
+    return FileResponse(cv.filepath, filename=cv.filename)
 
 
 @router.post("/audit", status_code=202)

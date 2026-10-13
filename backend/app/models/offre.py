@@ -20,6 +20,7 @@ class Offre(Base):
     date_import: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     statut: Mapped[str] = mapped_column(String(50), default="nouvelle")
     dedup_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    email_contact: Mapped[str | None] = mapped_column(String(320), nullable=True)
 
     @staticmethod
     def compute_hash(titre: str, entreprise: str, ville: str) -> str:

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getLettres, updateLettre, getLettrePdfUrl, type Lettre } from "@/lib/api";
+import { getLettres, updateLettre, downloadFile, errorMessage, type Lettre } from "@/lib/api";
 import toast from "react-hot-toast";
 
 export default function LettersPage() {
@@ -63,14 +63,15 @@ export default function LettersPage() {
                   >
                     Modifier
                   </button>
-                  <a
-                    href={getLettrePdfUrl(lettre.id)}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    onClick={() =>
+                      downloadFile(`/lettres/${lettre.id}/pdf`, `lettre_${lettre.entreprise}_v${lettre.version}.pdf`)
+                        .catch((e) => toast.error(errorMessage(e)))
+                    }
                     className="text-sm text-gray-500 hover:underline"
                   >
                     PDF ↓
-                  </a>
+                  </button>
                 </div>
               </div>
               <p className="text-sm text-gray-600 whitespace-pre-wrap line-clamp-4">{lettre.contenu}</p>

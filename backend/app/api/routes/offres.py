@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import get_current_user
 from app.db.session import get_db
 from app.models.offre import Offre
-from app.schemas.offre import OffreRead, OffreScanParams
+from app.schemas.offre import OffreRead, OffreScanParams, OffreUpdate
 
 router = APIRouter(prefix="/offres", tags=["offres"])
 
@@ -52,6 +52,8 @@ async def get_scan_status(
 ):
     from app.workers_client import get_celery_app
     result = get_celery_app().AsyncResult(task_id)
+    if result.failed():
+        return {"task_id": task_id, "status": "FAILURE", "result": None, "error": str(result.result)}
     return {
         "task_id": task_id,
         "status": result.status,
@@ -68,6 +70,22 @@ async def get_offre(
     offre = await db.get(Offre, offre_id)
     if not offre:
         raise HTTPException(status_code=404, detail="Offre not found")
+    return offre
+
+
+@router.patch("/{offre_id}", response_model=OffreRead)
+async def update_offre(
+    offre_id: int,
+    data: OffreUpdate,
+    _user: Annotated[str, Depends(get_current_user)],
+    db: AsyncSession = Depends(get_db),
+):
+    offre = await db.get(Offre, offre_id)
+    if not offre:
+        raise HTTPException(status_code=404, detail="Offre not found")
+    offre.email_contact = data.email_contact
+    await db.commit()
+    await db.refresh(offre)
     return offre
 
 

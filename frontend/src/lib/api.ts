@@ -1,4 +1,5 @@
 import axios from "axios";
+import { clearToken, getToken, setToken } from "./auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -6,6 +7,38 @@ export const api = axios.create({
   baseURL: API_URL,
   timeout: 30000,
 });
+
+api.interceptors.request.use((config) => {
+  const token = getToken();
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
+
+api.interceptors.response.use(
+  (r) => r,
+  (error) => {
+    if (error?.response?.status === 401 && typeof window !== "undefined" && window.location.pathname !== "/login") {
+      clearToken();
+      window.location.href = "/login";
+    }
+    return Promise.reject(error);
+  },
+);
+
+export const login = async (username: string, password: string) => {
+  const r = await api.post<{ access_token: string }>(
+    "/auth/token",
+    new URLSearchParams({ username, password }),
+    { headers: { "Content-Type": "application/x-www-form-urlencoded" } },
+  );
+  setToken(r.data.access_token);
+};
+
+export const errorMessage = (e: unknown): string => {
+  const detail = (e as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail;
+  if (typeof detail === "string") return detail;
+  return e instanceof Error ? e.message : "Erreur inconnue";
+};
 
 export interface Offre {
   id: number;
@@ -20,6 +53,7 @@ export interface Offre {
   date_import: string;
   statut: string;
   dedup_hash: string;
+  email_contact: string | null;
 }
 
 export interface Lettre {
@@ -39,6 +73,11 @@ export interface Candidature {
   statut: string;
   cree_le: string;
   modifie_le: string;
+  envoyee_le: string | null;
+  offre_titre: string | null;
+  offre_entreprise: string | null;
+  offre_lien: string | null;
+  offre_email_contact: string | null;
 }
 
 export interface CV {
@@ -62,6 +101,7 @@ export interface TaskStatus {
   task_id: string;
   status: string;
   result: unknown;
+  error?: string;
 }
 
 // Offres
@@ -90,8 +130,6 @@ export const generateLettre = (offreId: number, force = false) =>
 export const updateLettre = (id: number, contenu: string) =>
   api.put<Lettre>(`/lettres/${id}`, { contenu }).then((r) => r.data);
 
-export const getLettrePdfUrl = (id: number) => `${API_URL}/lettres/${id}/pdf`;
-
 export const getLettresByEntreprise = (name: string) =>
   api.get<Lettre[]>(`/lettres/entreprise/${encodeURIComponent(name)}`).then((r) => r.data);
 
@@ -104,9 +142,6 @@ export const createCandidature = (offreId: number, lettreId?: number) =>
 
 export const updateCandidature = (id: number, statut: string) =>
   api.patch<Candidature>(`/candidatures/${id}`, { statut }).then((r) => r.data);
-
-export const sendCandidatureEmail = (id: number, destinataire: string, sujet?: string) =>
-  api.post(`/candidatures/${id}/send-email`, { candidature_id: id, destinataire, sujet }).then((r) => r.data);
 
 export const exportCandidatures = (ids: number[]) =>
   api.post("/candidatures/export", { candidature_ids: ids }, { responseType: "blob" }).then((r) => r.data);
@@ -122,3 +157,50 @@ export const uploadCV = (file: File) => {
 
 export const triggerAudit = (emailDestination: string) =>
   api.post<TaskStatus>("/cv/audit", { email_destination: emailDestination, jour_execution: 1 }).then((r) => r.data);
+
+// Parcours candidature
+export type PostulerResult =
+  | { mode: "email"; destinataire: string }
+  | { mode: "site"; lien: string; lettre_id: number; lettre_texte: string };
+
+export const preparerCandidature = (offreId: number) =>
+  api.post<{ candidature_id: number; task_id: string; status: string }>("/candidatures/preparer", { offre_id: offreId }).then((r) => r.data);
+
+export const getGenerationStatus = (taskId: string) =>
+  api.get<TaskStatus>(`/lettres/generate/${taskId}`).then((r) => r.data);
+
+// mode "site" : toujours le kit de dépôt sur le site (repli quand le SMTP n'est pas configuré).
+export const postuler = (id: number, mode?: "auto" | "site") =>
+  api.post<PostulerResult>(`/candidatures/${id}/postuler`, null, { params: mode ? { mode } : {} }).then((r) => r.data);
+
+export const marquerEnvoyee = (id: number) =>
+  api.post<Candidature>(`/candidatures/${id}/marquer-envoyee`).then((r) => r.data);
+
+export const updateOffreEmail = (offreId: number, email: string | null) =>
+  api.patch<Offre>(`/offres/${offreId}`, { email_contact: email }).then((r) => r.data);
+
+export const downloadFile = async (path: string, filename: string) => {
+  const r = await api.get(path, { responseType: "blob" });
+  const url = URL.createObjectURL(r.data as Blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+export const copierTexte = async (texte: string) => {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(texte);
+    return;
+  }
+  const ta = document.createElement("textarea");
+  ta.value = texte;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.select();
+  const ok = document.execCommand("copy");
+  document.body.removeChild(ta);
+  if (!ok) throw new Error("copie impossible");
+};

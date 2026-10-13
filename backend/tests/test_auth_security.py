@@ -105,7 +105,7 @@ def test_audit_allows_user_email(client, auth_headers, monkeypatch):
             json={"email_destination": "user@example.com", "jour_execution": 1},
             headers=auth_headers,
         )
-    assert response.status_code == 200
+    assert response.status_code == 202
 
 
 def test_audit_no_restriction_when_user_email_unset(client, auth_headers, monkeypatch):
@@ -117,4 +117,4 @@ def test_audit_no_restriction_when_user_email_unset(client, auth_headers, monkey
             json={"email_destination": "anyone@example.com", "jour_execution": 1},
             headers=auth_headers,
         )
-    assert response.status_code == 200
+    assert response.status_code == 202

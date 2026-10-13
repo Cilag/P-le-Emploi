@@ -40,5 +40,11 @@ app.conf.beat_schedule = {
         ),
         "args": [],
         "kwargs": {"recipient": os.environ.get("CV_AUDIT_DEFAULT_RECIPIENT", "")},
-    }
+    },
+    # Scan quotidien des offres (paramètres SCAN_* lus par services/scan.py:daily_scan_params)
+    "daily-job-scan": {
+        "task": "workers.tasks.scraping.run_daily_scan",
+        "schedule": crontab(minute=0, hour=7),
+        "options": {"queue": "scraping"},
+    },
 }

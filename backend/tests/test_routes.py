@@ -42,6 +42,8 @@ async def client():
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     app.dependency_overrides[get_db] = override_get_db
+    from app.core.auth import get_current_user
+    app.dependency_overrides[get_current_user] = lambda: "admin"
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
@@ -72,7 +74,7 @@ async def test_get_offre_not_found(client):
 async def test_scan_returns_202(client):
     mock_task = MagicMock()
     mock_task.id = "fake-task-id"
-    with patch("app.api.routes.offres.run_scan_task") as mock:
+    with patch("app.workers_client.run_scan_task") as mock:
         mock.apply_async.return_value = mock_task
         resp = await client.post("/offres/scan", json={"secteur": "informatique"})
     assert resp.status_code == 202
@@ -130,7 +132,7 @@ async def test_generate_lettre_returns_202(client):
 
     mock_task = MagicMock()
     mock_task.id = "fake-gen-id"
-    with patch("app.api.routes.lettres.generate_letter_task") as mock:
+    with patch("app.workers_client.generate_letter_task") as mock:
         mock.apply_async.return_value = mock_task
         resp = await client.post("/lettres/generate", json={"offre_id": offre_id})
     assert resp.status_code == 202

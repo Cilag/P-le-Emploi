@@ -1,23 +1,20 @@
 import json
-import google.generativeai as genai
-from app.config import settings
 
-_GEMINI_MODEL = "gemini-1.5-flash"
+from app.services.ai.llm import chat
+
+CV_MAX = 6000
+DESCRIPTION_MAX = 5000
 
 
-def _gemini_chat(system_prompt: str, user_prompt: str) -> str:
-    if not settings.gemini_api_key:
-        raise RuntimeError(
-            "GEMINI_API_KEY est absent ou vide. "
-            "Ajoutez votre clé dans le fichier .env (voir .env.example)."
-        )
-    genai.configure(api_key=settings.gemini_api_key)
-    model = genai.GenerativeModel(
-        _GEMINI_MODEL,
-        system_instruction=system_prompt,
-    )
-    response = model.generate_content(user_prompt)
-    return response.text
+def nettoyer_reponse(texte: str) -> str:
+    """Retire un éventuel bloc ```…``` autour de la lettre."""
+    t = texte.strip()
+    if t.startswith("```"):
+        t = t.split("\n", 1)[1] if "\n" in t else ""
+        t = t.rstrip()
+        if t.endswith("```"):
+            t = t[:-3]
+    return t.strip()
 
 
 def generate_cover_letter(
@@ -34,7 +31,7 @@ Tu rédiges des lettres professionnelles, personnalisées, convaincantes et adap
 Voici le CV du candidat (utilise ces informations comme base pour personnaliser la lettre) :
 
 <cv>
-{cv_text}
+{cv_text[:CV_MAX]}
 </cv>"""
 
     user_prompt = f"""Rédige une lettre de motivation {contract_hint} pour le poste suivant :
@@ -42,7 +39,7 @@ Voici le CV du candidat (utilise ces informations comme base pour personnaliser 
 **Poste** : {offre_titre}
 **Entreprise** : {offre_entreprise}
 **Description** :
-{offre_description[:3000]}
+{offre_description[:DESCRIPTION_MAX]}
 
 Règles :
 - Ton professionnel adapté au secteur tech
@@ -51,10 +48,11 @@ Règles :
 - Pas de formules génériques ou de clichés
 - Utilise le prénom et les compétences du CV pour personnaliser
 - Termine avec une formule de politesse adaptée au type de contrat
+- Réponds uniquement par le texte de la lettre, sans préambule ni bloc de code
 
 Retourne uniquement le texte de la lettre, sans balises ni méta-commentaires."""
 
-    return _gemini_chat(system_prompt, user_prompt)
+    return nettoyer_reponse(chat(system_prompt, user_prompt))
 
 
 def generate_cv_audit(cv_text: str, offres_recentes: list[str] | None = None) -> dict:
@@ -68,7 +66,7 @@ Réponds uniquement avec un objet JSON valide, sans texte supplémentaire."""
     user_prompt = f"""Analyse ce CV en détail :
 
 <cv>
-{cv_text}
+{cv_text[:CV_MAX]}
 </cv>
 
 Offres d'emploi récentes dans le secteur (pour identifier les compétences en demande) :
@@ -86,7 +84,7 @@ Fournis ton analyse au format JSON strict avec ces champs :
   "resume_executif": "..."
 }}"""
 
-    text = _gemini_chat(system_prompt, user_prompt)
+    text = chat(system_prompt, user_prompt)
     start = text.find("{")
     end = text.rfind("}") + 1
     if start >= 0 and end > start:

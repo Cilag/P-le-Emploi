@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getCandidatures, updateCandidature, exportCandidatures, postuler, marquerEnvoyee, updateOffreEmail, downloadFile, copierTexte, errorMessage, type PostulerResult, type Candidature } from "@/lib/api";
+import { getCandidatures, updateCandidature, exportCandidatures, getLettre, postuler, marquerEnvoyee, updateOffreEmail, downloadFile, copierTexte, errorMessage, type PostulerResult, type Candidature } from "@/lib/api";
 import toast from "react-hot-toast";
 
 const STATUTS = ["en_attente", "envoyee", "refusee", "entretien", "acceptee"];
@@ -36,7 +36,15 @@ export default function ApplicationsPage() {
   const refresh = () => qc.invalidateQueries({ queryKey: ["candidatures"] });
 
   const postulerMutation = useMutation({
-    mutationFn: (c: Candidature) => postuler(c.id).then((r) => ({ c, r })),
+    mutationFn: (c: Candidature) =>
+      postuler(c.id)
+        .catch((e) => {
+          // SMTP non configuré : on bascule sur le kit « dépôt sur le site » (aucun envoi).
+          if ((e as { response?: { status?: number } })?.response?.status !== 503) throw e;
+          toast.error("SMTP non configuré : candidature à déposer sur le site");
+          return postuler(c.id, "site");
+        })
+        .then((r) => ({ c, r })),
     onSuccess: ({ c, r }) => {
       if (r.mode === "email") {
         toast.success(`Candidature envoyée à ${r.destinataire}`);
@@ -49,8 +57,29 @@ export default function ApplicationsPage() {
     onError: (e) => toast.error(errorMessage(e)),
   });
 
-  const onPostuler = (c: Candidature) => {
-    if (c.offre_email_contact && !window.confirm(`Envoyer la lettre et le CV à ${c.offre_email_contact} ?`)) return;
+  const onPostuler = async (c: Candidature) => {
+    if (c.offre_email_contact) {
+      if (!c.lettre_id) return;
+      // Validation humaine : montrer destinataire, offre et début de la lettre avant tout envoi.
+      let contenu: string;
+      try {
+        contenu = (await getLettre(c.lettre_id)).contenu;
+      } catch (e) {
+        toast.error(`Lettre introuvable, envoi annulé : ${errorMessage(e)}`);
+        return;
+      }
+      const extrait = contenu.length > 400 ? `${contenu.slice(0, 400)}…` : contenu;
+      const message =
+        `Envoyer la lettre et le CV à ${c.offre_email_contact} ?
+
+` +
+        `Offre : ${c.offre_titre ?? `#${c.offre_id}`}
+
+` +
+        `Début de la lettre :
+${extrait}`;
+      if (!window.confirm(message)) return;
+    }
     postulerMutation.mutate(c);
   };
 

@@ -130,8 +130,6 @@ export const generateLettre = (offreId: number, force = false) =>
 export const updateLettre = (id: number, contenu: string) =>
   api.put<Lettre>(`/lettres/${id}`, { contenu }).then((r) => r.data);
 
-export const getLettrePdfUrl = (id: number) => `${API_URL}/lettres/${id}/pdf`;
-
 export const getLettresByEntreprise = (name: string) =>
   api.get<Lettre[]>(`/lettres/entreprise/${encodeURIComponent(name)}`).then((r) => r.data);
 
@@ -171,8 +169,9 @@ export const preparerCandidature = (offreId: number) =>
 export const getGenerationStatus = (taskId: string) =>
   api.get<TaskStatus>(`/lettres/generate/${taskId}`).then((r) => r.data);
 
-export const postuler = (id: number) =>
-  api.post<PostulerResult>(`/candidatures/${id}/postuler`).then((r) => r.data);
+// mode "site" : toujours le kit de dépôt sur le site (repli quand le SMTP n'est pas configuré).
+export const postuler = (id: number, mode?: "auto" | "site") =>
+  api.post<PostulerResult>(`/candidatures/${id}/postuler`, null, { params: mode ? { mode } : {} }).then((r) => r.data);
 
 export const marquerEnvoyee = (id: number) =>
   api.post<Candidature>(`/candidatures/${id}/marquer-envoyee`).then((r) => r.data);

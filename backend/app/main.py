@@ -10,6 +10,7 @@ from slowapi.util import get_remote_address
 from app.api import scheduler
 from app.api.routes import auth, candidatures, cv, lettres, offres
 from app.config import settings
+from app.db.migrations import apply_column_migrations
 from app.db.session import Base, engine
 
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
@@ -19,6 +20,7 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await apply_column_migrations(conn)
     yield
 
 

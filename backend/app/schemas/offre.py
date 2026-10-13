@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from datetime import datetime
 from typing import Optional
 
@@ -12,10 +12,15 @@ class OffreBase(BaseModel):
     ville: Optional[str] = None
     type_contrat: Optional[str] = None
     date_publication: Optional[datetime] = None
+    email_contact: Optional[str] = None
 
 
 class OffreCreate(OffreBase):
     pass
+
+
+class OffreUpdate(BaseModel):
+    email_contact: Optional[EmailStr] = None
 
 
 class OffreRead(OffreBase):

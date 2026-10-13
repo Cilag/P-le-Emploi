@@ -53,6 +53,7 @@ export interface Offre {
   date_import: string;
   statut: string;
   dedup_hash: string;
+  email_contact: string | null;
 }
 
 export interface Lettre {
@@ -72,6 +73,11 @@ export interface Candidature {
   statut: string;
   cree_le: string;
   modifie_le: string;
+  envoyee_le: string | null;
+  offre_titre: string | null;
+  offre_entreprise: string | null;
+  offre_lien: string | null;
+  offre_email_contact: string | null;
 }
 
 export interface CV {
@@ -95,6 +101,7 @@ export interface TaskStatus {
   task_id: string;
   status: string;
   result: unknown;
+  error?: string;
 }
 
 // Offres
@@ -138,9 +145,6 @@ export const createCandidature = (offreId: number, lettreId?: number) =>
 export const updateCandidature = (id: number, statut: string) =>
   api.patch<Candidature>(`/candidatures/${id}`, { statut }).then((r) => r.data);
 
-export const sendCandidatureEmail = (id: number, destinataire: string, sujet?: string) =>
-  api.post(`/candidatures/${id}/send-email`, { candidature_id: id, destinataire, sujet }).then((r) => r.data);
-
 export const exportCandidatures = (ids: number[]) =>
   api.post("/candidatures/export", { candidature_ids: ids }, { responseType: "blob" }).then((r) => r.data);
 
@@ -155,3 +159,33 @@ export const uploadCV = (file: File) => {
 
 export const triggerAudit = (emailDestination: string) =>
   api.post<TaskStatus>("/cv/audit", { email_destination: emailDestination, jour_execution: 1 }).then((r) => r.data);
+
+// Parcours candidature
+export type PostulerResult =
+  | { mode: "email"; destinataire: string }
+  | { mode: "site"; lien: string; lettre_id: number; lettre_texte: string };
+
+export const preparerCandidature = (offreId: number) =>
+  api.post<{ candidature_id: number; task_id: string; status: string }>("/candidatures/preparer", { offre_id: offreId }).then((r) => r.data);
+
+export const getGenerationStatus = (taskId: string) =>
+  api.get<TaskStatus>(`/lettres/generate/${taskId}`).then((r) => r.data);
+
+export const postuler = (id: number) =>
+  api.post<PostulerResult>(`/candidatures/${id}/postuler`).then((r) => r.data);
+
+export const marquerEnvoyee = (id: number) =>
+  api.post<Candidature>(`/candidatures/${id}/marquer-envoyee`).then((r) => r.data);
+
+export const updateOffreEmail = (offreId: number, email: string | null) =>
+  api.patch<Offre>(`/offres/${offreId}`, { email_contact: email }).then((r) => r.data);
+
+export const downloadFile = async (path: string, filename: string) => {
+  const r = await api.get(path, { responseType: "blob" });
+  const url = URL.createObjectURL(r.data as Blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};

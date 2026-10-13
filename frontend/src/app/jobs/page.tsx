@@ -1,7 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { errorMessage, getOffres, launchScan, getScanStatus, getSources, type Offre, type ScanParams } from "@/lib/api";
+import { errorMessage, preparerCandidature, getGenerationStatus, getOffres, launchScan, getScanStatus, getSources, type Offre, type ScanParams } from "@/lib/api";
 import toast from "react-hot-toast";
 
 const CONTRACT_TYPES = ["", "CDI", "CDD", "alternance"];
@@ -26,6 +26,36 @@ export default function JobsPage() {
   const [scanTaskId, setScanTaskId] = useState<string | null>(null);
   const [showScanModal, setShowScanModal] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
+
+  const [generation, setGeneration] = useState<{ taskId: string; titre: string } | null>(null);
+
+  const prepareMutation = useMutation({
+    mutationFn: (offre: Offre) => preparerCandidature(offre.id).then((r) => ({ ...r, titre: offre.titre })),
+    onSuccess: (r) => {
+      setGeneration({ taskId: r.task_id, titre: r.titre });
+      toast.success("Candidature créée, Hermes rédige la lettre...");
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+
+  const { data: genStatus } = useQuery({
+    queryKey: ["generation", generation?.taskId],
+    queryFn: () => getGenerationStatus(generation!.taskId),
+    enabled: !!generation,
+    refetchInterval: (q) => (["SUCCESS", "FAILURE"].includes(q.state.data?.status ?? "") ? false : 3000),
+  });
+
+  useEffect(() => {
+    if (!generation || !genStatus) return;
+    if (genStatus.status === "SUCCESS") {
+      toast.success(`Lettre prête pour « ${generation.titre} » — voir Candidatures`);
+      qc.invalidateQueries({ queryKey: ["candidatures"] });
+      setGeneration(null);
+    } else if (genStatus.status === "FAILURE") {
+      toast.error(`Échec de génération : ${genStatus.error ?? "erreur inconnue"}`);
+      setGeneration(null);
+    }
+  }, [genStatus, generation, qc]);
 
   const { data: offres = [], isLoading, isError, error } = useQuery({
     queryKey: ["offres", filters],
@@ -128,6 +158,8 @@ export default function JobsPage() {
               offre={offre}
               selected={selected.has(offre.id)}
               onToggle={() => toggleSelect(offre.id)}
+              onPrepare={() => prepareMutation.mutate(offre)}
+              preparing={prepareMutation.isPending || !!generation}
             />
           ))}
         </div>
@@ -190,7 +222,7 @@ export default function JobsPage() {
   );
 }
 
-function OffreCard({ offre, selected, onToggle }: { offre: Offre; selected: boolean; onToggle: () => void }) {
+function OffreCard({ offre, selected, onToggle, onPrepare, preparing }: { offre: Offre; selected: boolean; onToggle: () => void; onPrepare: () => void; preparing: boolean }) {
   return (
     <div className={`bg-white rounded-xl border p-4 flex gap-3 items-start transition-all ${selected ? "border-primary-500 shadow-md" : "border-gray-100 shadow-sm"}`}>
       <input type="checkbox" checked={selected} onChange={onToggle} className="mt-1 w-4 h-4 accent-primary-600" aria-label={`Sélectionner l'offre ${offre.titre}`} />
@@ -204,9 +236,15 @@ function OffreCard({ offre, selected, onToggle }: { offre: Offre; selected: bool
           <span className="inline-block mt-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{offre.type_contrat}</span>
         )}
       </div>
-      <a href={offre.lien_source} target="_blank" rel="noopener noreferrer" className="text-primary-600 text-sm hover:underline shrink-0">
-        Voir l&apos;offre →
-      </a>
+      <div className="flex flex-col items-end gap-2 shrink-0">
+        <a href={offre.lien_source} target="_blank" rel="noopener noreferrer" className="text-primary-600 text-sm hover:underline">
+          Voir l&apos;offre →
+        </a>
+        <button onClick={onPrepare} disabled={preparing}
+          className="text-sm bg-primary-600 text-white px-3 py-1 rounded-lg hover:bg-primary-700 disabled:opacity-50">
+          Préparer la candidature
+        </button>
+      </div>
     </div>
   );
 }

@@ -1,7 +1,10 @@
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, EmailStr
+
+
+StatutCandidature = Literal["en_attente", "envoyee", "refusee", "entretien", "acceptee"]
 
 
 class CandidatureCreate(BaseModel):
@@ -10,7 +13,7 @@ class CandidatureCreate(BaseModel):
 
 
 class CandidatureUpdate(BaseModel):
-    statut: str
+    statut: StatutCandidature
 
 
 class CandidatureRead(BaseModel):
@@ -26,7 +29,6 @@ class CandidatureRead(BaseModel):
 
 
 class SendEmailRequest(BaseModel):
-    candidature_id: int
     destinataire: EmailStr
     sujet: Optional[str] = None
 

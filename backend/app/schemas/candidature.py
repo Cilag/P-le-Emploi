@@ -23,9 +23,18 @@ class CandidatureRead(BaseModel):
     statut: str
     cree_le: datetime
     modifie_le: datetime
+    envoyee_le: Optional[datetime] = None
+    offre_titre: Optional[str] = None
+    offre_entreprise: Optional[str] = None
+    offre_lien: Optional[str] = None
+    offre_email_contact: Optional[str] = None
 
     class Config:
         from_attributes = True
+
+
+class PreparerRequest(BaseModel):
+    offre_id: int
 
 
 class SendEmailRequest(BaseModel):

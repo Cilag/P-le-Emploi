@@ -52,6 +52,8 @@ async def get_scan_status(
 ):
     from app.workers_client import get_celery_app
     result = get_celery_app().AsyncResult(task_id)
+    if result.failed():
+        return {"task_id": task_id, "status": "FAILURE", "result": None, "error": str(result.result)}
     return {
         "task_id": task_id,
         "status": result.status,

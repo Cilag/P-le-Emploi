@@ -1,7 +1,13 @@
+import os
+
 from celery import Celery
 from app.config import settings
 
-_celery = Celery(broker=settings.redis_url, backend=settings.redis_url)
+# Mêmes URL que le worker (celery_app.py) : sinon les résultats écrits par le worker sont introuvables.
+_celery = Celery(
+    broker=os.environ.get("CELERY_BROKER_URL") or settings.redis_url,
+    backend=os.environ.get("CELERY_RESULT_BACKEND") or settings.redis_url,
+)
 
 
 def _task(name: str):

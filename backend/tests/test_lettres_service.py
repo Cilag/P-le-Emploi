@@ -205,3 +205,14 @@ async def test_autre_source_pas_de_requete(session_factory):
     async with session_factory() as db:
         o = await _offre(db)
         await generer_lettre_pour_offre(db, o.id, generate=lambda **kw: "Lettre", fetch_description=fake_fetch)
+
+
+@pytest.mark.asyncio
+async def test_linkedin_erreur_inattendue_ecrit_quand_meme(session_factory):
+    async def fake_fetch(lien):
+        raise ValueError("page inattendue")
+
+    async with session_factory() as db:
+        o = await _offre_linkedin(db)
+        out = await generer_lettre_pour_offre(db, o.id, generate=lambda **kw: "Lettre", fetch_description=fake_fetch)
+    assert out["reused"] is False and "lettre_id" in out

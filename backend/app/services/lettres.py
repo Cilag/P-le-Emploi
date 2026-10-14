@@ -1,4 +1,6 @@
 """Génération d'une lettre pour une offre (appelée par la tâche Celery generate_letter)."""
+import logging
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -7,6 +9,8 @@ from app.models.cv import CV
 from app.models.lettre import Lettre
 from app.models.offre import Offre
 from app.services.ai.letter_generator import generate_cover_letter
+
+logger = logging.getLogger(__name__)
 
 
 async def generer_lettre_pour_offre(
@@ -72,9 +76,14 @@ async def _completer_description(db: AsyncSession, offre: Offre, fetch_descripti
     """Les offres LinkedIn arrivent sans description : on la lit sur la page publique avant d'écrire."""
     if offre.source != "linkedin" or offre.description:
         return
-    if fetch_description is None:
-        from app.services.scrapers.linkedin import fetch_description
-    description = await fetch_description(offre.lien_source)
+    try:
+        if fetch_description is None:
+            from app.services.scrapers.linkedin import fetch_description as _fetch
+            fetch_description = _fetch
+        description = await fetch_description(offre.lien_source)
+    except Exception as e:  # la lettre doit être écrite même sans description
+        logger.warning("description LinkedIn indisponible pour l'offre %s : %s", offre.id, e)
+        return
     if description:
         offre.description = description
         await db.flush()

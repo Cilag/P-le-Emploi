@@ -17,6 +17,8 @@ def run_async(coro):
 
 @app.task(name="workers.tasks.cv_audit.run_cv_audit", bind=True, max_retries=3)
 def run_cv_audit(self, recipient: str = "", **kwargs):
+    # La page Audit (POST /cv/audit) envoie « email_destination » ; Beat envoie « recipient ».
+    recipient = recipient or kwargs.get("email_destination") or ""
     from app.db.session import AsyncSessionLocal
     from app.models.cv import CV
     from app.models.offre import Offre
@@ -56,13 +58,14 @@ COMPÉTENCES À DÉVELOPPER :
 RÉSUMÉ EXÉCUTIF :
 {report.get('resume_executif', '')}
 """
+            envoye = False
             if recipient:
-                send_email_with_attachments(
+                envoye = send_email_with_attachments(
                     to=recipient,
-                    subject="Audit mensuel de votre CV — Pôle Emploi Assistant",
+                    subject="Audit de votre CV — Pôle Emploi Assistant",
                     body=report_text,
                 )
-            return {"status": "ok", "recipient": recipient, "score": report.get("score_global")}
+            return {"status": "ok", "recipient": recipient, "envoye": envoye, "score": report.get("score_global")}
 
     try:
         return run_async(_run())

@@ -8,7 +8,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from app.api import scheduler
-from app.api.routes import auth, candidatures, cv, lettres, offres
+from app.api.routes import appartements, auth, candidatures, cv, lettres, offres
 from app.config import settings
 from app.db.migrations import apply_column_migrations
 from app.db.session import Base, engine
@@ -48,6 +48,7 @@ app.include_router(offres.router)
 app.include_router(lettres.router)
 app.include_router(candidatures.router)
 app.include_router(cv.router)
+app.include_router(appartements.router)
 app.include_router(scheduler.router)
 
 

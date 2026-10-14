@@ -17,6 +17,9 @@ const SOURCES_LABELS: Record<string, string> = {
   monster: "Monster",
   letudiant: "L'Étudiant",
   regionsjob: "RégionsJob",
+  adzuna: "Adzuna",
+  jooble: "Jooble",
+  remotive: "Remotive",
 };
 
 export default function JobsPage() {

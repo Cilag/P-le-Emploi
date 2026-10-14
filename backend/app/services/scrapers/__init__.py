@@ -20,6 +20,9 @@ _REGISTRY: dict[str, tuple[str, str]] = {
     "monster": ("monster", "MonsterScraper"),
     "letudiant": ("letudiant", "LEtudiantScraper"),
     "regionsjob": ("regionsjob", "RegionsJobScraper"),
+    "adzuna": ("adzuna", "AdzunaScraper"),
+    "jooble": ("jooble", "JoobleScraper"),
+    "remotive": ("remotive", "RemotiveScraper"),
 }
 
 

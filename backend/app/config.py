@@ -20,6 +20,10 @@ class Settings(BaseSettings):
     hermes_token: str = ""
     francetravail_client_id: str = ""
     francetravail_client_secret: str = ""
+    # Agrégateurs d'offres par API (clés gratuites)
+    adzuna_app_id: str = ""
+    adzuna_app_key: str = ""
+    jooble_api_key: str = ""
 
     smtp_host: str = ""
     smtp_port: int = 587

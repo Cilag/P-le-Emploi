@@ -26,11 +26,41 @@ class ExtractionError(Exception):
     pass
 
 
+MAX_MORCEAUX = 4
+
+
+def decouper(texte: str, taille: int = TEXTE_MAX) -> list[str]:
+    """Découpe aux fins de ligne en morceaux d'au plus `taille` caractères (une ligne trop longue est tronquée)."""
+    morceaux, courant = [], ""
+    for ligne in texte.splitlines():
+        ligne = ligne[:taille]
+        if courant and len(courant) + 1 + len(ligne) > taille:
+            morceaux.append(courant)
+            courant = ligne
+        else:
+            courant = f"{courant}\n{ligne}" if courant else ligne
+    if courant:
+        morceaux.append(courant)
+    return morceaux or [""]
+
+
 def extraire_annonces(texte_email: str, chat=None) -> list[AnnonceBrute]:
+    """Une alerte longue (beaucoup d'annonces et de liens) est traitée en plusieurs appels, sans rien perdre."""
+    morceaux = decouper(texte_email)
+    if len(morceaux) > MAX_MORCEAUX:
+        logger.warning("appartements : alerte de %d caractères, seuls les %d premiers morceaux sont lus",
+                       len(texte_email), MAX_MORCEAUX)
+    annonces = []
+    for morceau in morceaux[:MAX_MORCEAUX]:
+        annonces.extend(_extraire_morceau(morceau, chat))
+    return annonces
+
+
+def _extraire_morceau(texte: str, chat=None) -> list[AnnonceBrute]:
     if chat is None:
         from app.services.ai.llm import chat
     try:
-        reponse = chat(CONSIGNES, "E-mail d'alerte :\n\n" + texte_email[:TEXTE_MAX])
+        reponse = chat(CONSIGNES, "E-mail d'alerte :\n\n" + texte)
     except LLMError as e:
         raise ExtractionError(str(e)) from e
     debut, fin = reponse.find("["), reponse.rfind("]")

@@ -29,15 +29,24 @@ def test_extraction_et_consignes():
     assert "JSON" in vu["system"] and "Chartrons" in vu["user"]
 
 
-def test_texte_tronque():
-    vu = {}
+def test_texte_long_decoupe_en_plusieurs_appels():
+    appels = []
 
     def chat(system, user):
-        vu["user"] = user
-        return "[]"
+        appels.append(user)
+        return json.dumps([{"titre": f"annonce {len(appels)}"}])
 
-    extraction.extraire_annonces("A" * 9000, chat=chat)
-    assert "A" * 7000 in vu["user"] and "A" * 7001 not in vu["user"]
+    texte = "\n".join(f"ligne {i} " + "x" * 90 for i in range(150))
+    annonces = extraction.extraire_annonces(texte, chat=chat)
+    assert len(appels) == 3 and all(len(u) <= extraction.TEXTE_MAX + 100 for u in appels)
+    assert [a.titre for a in annonces] == ["annonce 1", "annonce 2", "annonce 3"]
+    assert "ligne 0 " in appels[0] and "ligne 149 " in appels[-1]
+
+
+def test_ligne_unique_trop_longue_tronquee():
+    vu = []
+    extraction.extraire_annonces("A" * 9000, chat=lambda s, u: vu.append(u) or "[]")
+    assert len(vu) == 1 and "A" * 7000 in vu[0] and "A" * 7001 not in vu[0]
 
 
 def test_entree_invalide_ignoree():

@@ -6,6 +6,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../backend"))
 
 from celery_app import app
 
+# Une passe s'arrête après ce budget (les appels à Hermes sont lents) ; le reste est lu au passage suivant.
+BUDGET_PASSE_S = 240
+
 
 def run_async(coro):
     loop = asyncio.new_event_loop()
@@ -27,22 +30,26 @@ def lire_alertes(self):
     from app.services.appartements import etat
     from app.services.appartements.imap import ImapError
     from app.services.appartements.imap import lire_alertes as lire
-    from app.services.appartements.pipeline import traiter_alertes
+    from app.services.appartements.pipeline import ids_termines, traiter_alertes
 
     r = _redis()
-    if not etat.prendre_verrou(r):
+    jeton = etat.prendre_verrou(r)
+    if not jeton:
         return {"ignore": "lecture déjà en cours"}
     try:
-        try:
-            emails = lire()
-        except ImapError as e:
-            etat.ecrire_etat(r, "erreur", str(e))
-            return {"erreur": str(e)}
-        res = run_async(traiter_alertes(AsyncSessionLocal, emails))
+        termines = run_async(ids_termines(AsyncSessionLocal))
+        emails = lire(ignorer=termines.__contains__)
+        res = run_async(traiter_alertes(AsyncSessionLocal, emails, budget_s=BUDGET_PASSE_S))
         etat.ecrire_etat(r, "partiel" if res["erreurs"] else "ok", "; ".join(res["erreurs"])[:500] or None)
         return res
+    except ImapError as e:
+        etat.ecrire_etat(r, "erreur", str(e))
+        return {"erreur": str(e)}
+    except Exception as e:
+        etat.ecrire_etat(r, "erreur", f"{type(e).__name__} : {e}"[:500])
+        raise
     finally:
-        etat.liberer_verrou(r)
+        etat.liberer_verrou(r, jeton)
 
 
 @app.task(name="workers.tasks.appartements.analyser_annonce")

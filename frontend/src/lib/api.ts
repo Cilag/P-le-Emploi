@@ -236,6 +236,7 @@ export interface EtatAppartements {
   derniere_erreur: string | null;
   nb_alertes_24h: number;
   nb_annonces_24h: number;
+  alertes_abandonnees: { sujet: string | null; erreur: string | null }[];
 }
 
 export const getAnnonces = (params?: Record<string, string>) =>

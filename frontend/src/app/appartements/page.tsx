@@ -25,6 +25,9 @@ const couleurNote = (n: number | null) =>
         ? "bg-yellow-100 text-yellow-800"
         : "bg-red-100 text-red-800";
 
+// Un lien venu d'un e-mail n'est cliquable que s'il est en http(s) (jamais « javascript: »).
+const lienSur = (lien: string | null) => (lien && /^https?:\/\//i.test(lien) ? lien : null);
+
 function ilYa(iso: string | null): { texte: string; minutes: number | null } {
   if (!iso) return { texte: "jamais", minutes: null };
   const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -103,6 +106,18 @@ export default function AppartementsPage() {
           <Link href="/appartements/dossier" className="text-primary-600 hover:underline">Mon dossier</Link>
         </div>
       </div>
+
+      {etat && etat.alertes_abandonnees.length > 0 && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg p-3 text-sm">
+          {etat.alertes_abandonnees.length} alerte(s) n&apos;ont pas pu être lues après 3 essais (leurs annonces
+          manquent) :
+          <ul className="list-disc pl-5 mt-1">
+            {etat.alertes_abandonnees.map((a, i) => (
+              <li key={i}>{a.sujet ?? "sans sujet"} — {a.erreur ?? "erreur inconnue"}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       <div className="flex gap-3 flex-wrap">
         <select
@@ -200,9 +215,9 @@ export default function AppartementsPage() {
               </div>
             )}
             <div className="flex flex-wrap gap-2 items-center">
-              {ouverte.lien && (
+              {lienSur(ouverte.lien) && (
                 <a
-                  href={ouverte.lien}
+                  href={lienSur(ouverte.lien) ?? undefined}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="bg-primary-600 text-white px-3 py-2 rounded-lg text-sm"

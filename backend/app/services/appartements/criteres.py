@@ -22,6 +22,7 @@ class Verdict:
     loyer_retenu: float | None
     drapeaux: list[str] = field(default_factory=list)
     motif: str | None = None
+    ville_canonique: str | None = None
 
 
 def criteres_depuis_settings() -> Criteres:
@@ -54,14 +55,14 @@ def evaluer(a: AnnonceBrute, c: Criteres) -> Verdict:
         drapeaux.append("pieces_inconnues")
     elif a.pieces > c.pieces_max:
         return Verdict(False, loyer, drapeaux, f"{a.pieces} pièces > {c.pieces_max}")
-    villes = [normaliser(v) for v in c.villes]
-    dans_ville = any(v in normaliser(a.ville) for v in villes) if a.ville else False
-    dans_titre = any(v in normaliser(a.titre) for v in villes)
-    if not dans_ville and not dans_titre:
+    # Ville canonique = la ville des critères reconnue (« Bordeaux (33000) » → « Bordeaux »)
+    canonique = next((v for v in c.villes if a.ville and normaliser(v) in normaliser(a.ville)), None)
+    canonique = canonique or next((v for v in c.villes if normaliser(v) in normaliser(a.titre)), None)
+    if canonique is None:
         if a.ville:
             return Verdict(False, loyer, drapeaux, f"ville hors critères : {a.ville}")
         drapeaux.append("ville_inconnue")
-    return Verdict(True, loyer, drapeaux)
+    return Verdict(True, loyer, drapeaux, ville_canonique=canonique)
 
 
 def lien_normalise(lien: str | None) -> str | None:

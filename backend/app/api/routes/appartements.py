@@ -12,6 +12,7 @@ from app.db.session import get_db
 from app.models.appartement import AlerteEmail, Annonce, DossierLocataire
 from app.schemas.appartement import AnnonceRead, AnnonceUpdate, DossierRead, DossierUpdate
 from app.services.appartements.etat import lire_etat
+from app.services.appartements.pipeline import MAX_TENTATIVES
 
 router = APIRouter(prefix="/appartements", tags=["appartements"])
 _redis = redis.from_url(os.environ.get("REDIS_URL", "redis://redis:6379/0"))
@@ -72,6 +73,12 @@ async def etat_lecture(_user: Annotated[str, Depends(get_current_user)], db: Asy
     nb_annonces = (await db.execute(
         select(func.count()).select_from(Annonce).where(Annonce.recue_le >= depuis)
     )).scalar()
+    abandonnees = (await db.execute(
+        select(AlerteEmail.sujet, AlerteEmail.erreur)
+        .where(AlerteEmail.statut == "erreur", AlerteEmail.tentatives >= MAX_TENTATIVES,
+               AlerteEmail.traite_le >= datetime.now(timezone.utc) - timedelta(days=3))
+        .order_by(AlerteEmail.traite_le.desc()).limit(10)
+    )).all()
     e = lire_etat(_redis)
     return {
         "derniere_lecture": e.get("derniere_lecture"),
@@ -79,6 +86,8 @@ async def etat_lecture(_user: Annotated[str, Depends(get_current_user)], db: Asy
         "derniere_erreur": e.get("erreur"),
         "nb_alertes_24h": nb_alertes,
         "nb_annonces_24h": nb_annonces,
+        # Alertes abandonnées après 3 échecs : leurs annonces n'apparaîtront pas, l'utilisateur doit le savoir.
+        "alertes_abandonnees": [{"sujet": s, "erreur": err} for s, err in abandonnees],
     }
 
 

@@ -29,8 +29,9 @@ class FakeImap:
         self.messages, self.dossier_ok, self.login_ok = messages, dossier_ok, login_ok
         self.appels = []
 
-    def __call__(self, host, port):
+    def __call__(self, host, port, timeout=None):
         self.appels.append(("connect", host, port))
+        self.timeout = timeout
         return self
 
     def login(self, user, pw):
@@ -49,7 +50,13 @@ class FakeImap:
 
     def fetch(self, num, quoi):
         self.appels.append(("fetch", num, quoi))
-        return "OK", [(b"1 (BODY[] {n})", self.messages[int(num) - 1]), b")"]
+        brut = self.messages[int(num) - 1]
+        if brut is None:
+            return "OK", [None]
+        if "HEADER.FIELDS" in quoi:
+            sep = b"\r\n\r\n" if b"\r\n\r\n" in brut else b"\n\n"
+            return "OK", [(b"1 (BODY[HEADER.FIELDS (MESSAGE-ID)] {n})", brut.split(sep, 1)[0]), b")"]
+        return "OK", [(b"1 (BODY[] {n})", brut), b")"]
 
     def logout(self):
         self.appels.append(("logout",))
@@ -69,7 +76,8 @@ def test_lecture_seule_et_repli_smtp(identifiants):
     assert ("connect", "imap.gmail.com", 993) in f.appels
     assert ("login", "moi@gmail.com", "secret") in f.appels
     assert ("select", '"Appartements"', True) in f.appels
-    assert all(a[2] == "(BODY.PEEK[])" for a in f.appels if a[0] == "fetch")
+    assert all(a[2].startswith("(BODY.PEEK[") for a in f.appels if a[0] == "fetch")
+    assert f.timeout == 60
     assert f.appels[-1] == ("logout",)
     e = emails[0]
     assert (e.message_id, e.expediteur, e.sujet) == ("<m1@jinka.fr>", "Jinka <alertes@jinka.fr>", "3 nouvelles annonces")
@@ -110,4 +118,23 @@ def test_non_configure(monkeypatch):
     for k in ("imap_user", "imap_pass", "smtp_user", "smtp_pass"):
         monkeypatch.setattr(settings, k, "")
     with pytest.raises(imap.ImapError, match="IMAP non configuré"):
+        imap.lire_alertes(imap_factory=FakeImap([]))
+
+
+def test_messages_deja_traites_non_telecharges(identifiants):
+    f = FakeImap([_brut("<deja@x>", texte="vieux"), _brut("<nouveau@x>", texte="neuf")])
+    emails = imap.lire_alertes(imap_factory=f, ignorer=lambda mid: mid == "<deja@x>")
+    assert [e.message_id for e in emails] == ["<nouveau@x>"]
+    complets = [a for a in f.appels if a[0] == "fetch" and a[2] == "(BODY.PEEK[])"]
+    assert [a[1] for a in complets] == [b"2"]
+
+
+def test_message_illisible_ignore(identifiants):
+    emails = imap.lire_alertes(imap_factory=FakeImap([None, _brut(texte="ok")]))
+    assert [e.message_id for e in emails] == ["<m1@jinka.fr>"]
+
+
+def test_dossier_non_ascii_erreur_lisible(identifiants, monkeypatch):
+    monkeypatch.setattr(settings, "imap_dossier", "Locations à Bordeaux")
+    with pytest.raises(imap.ImapError, match="ASCII"):
         imap.lire_alertes(imap_factory=FakeImap([]))

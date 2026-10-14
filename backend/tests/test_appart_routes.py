@@ -49,14 +49,18 @@ async def test_dossier(api):
 @pytest.mark.asyncio
 async def test_etat_affiche_l_erreur(api, session_factory):
     async with session_factory() as db:
-        db.add(AlerteEmail(message_id="<1>", statut="ok", nb_annonces=2))
+        db.add_all([AlerteEmail(message_id="<1>", statut="ok", nb_annonces=2),
+                    AlerteEmail(message_id="<2>", statut="erreur", tentatives=3, sujet="3 annonces Jinka",
+                                erreur="Hermes injoignable"),
+                    AlerteEmail(message_id="<3>", statut="erreur", tentatives=1, sujet="en cours")])
         await db.commit()
     with patch("app.api.routes.appartements.lire_etat",
                return_value={"derniere_lecture": "2026-10-14T08:00:00+00:00", "statut": "erreur",
                              "erreur": "Dossier IMAP « Appartements » introuvable"}):
         e = (await api.get("/appartements/etat")).json()
     assert e["dernier_statut"] == "erreur" and "introuvable" in e["derniere_erreur"]
-    assert e["nb_alertes_24h"] == 1 and e["derniere_lecture"].startswith("2026-10-14")
+    assert e["nb_alertes_24h"] == 3 and e["derniere_lecture"].startswith("2026-10-14")
+    assert e["alertes_abandonnees"] == [{"sujet": "3 annonces Jinka", "erreur": "Hermes injoignable"}]
 
 
 @pytest.mark.asyncio

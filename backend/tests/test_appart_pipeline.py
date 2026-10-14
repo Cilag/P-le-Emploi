@@ -49,7 +49,7 @@ async def test_traitement_complet(session_factory):
     res = await traiter_alertes(session_factory, [E("<1>")],
                                 extraire=lambda t: [B(), B(ville="Mérignac", lien="https://x/2")],
                                 analyser_fn=analyse, criteres=C)
-    assert res == {"emails": 1, "annonces": 1, "erreurs": []}
+    assert res == {"emails": 1, "annonces": 1, "erreurs": [], "interrompu": False}
     async with session_factory() as db:
         a = (await db.execute(select(Annonce))).scalars().one()
         alerte = (await db.execute(select(AlerteEmail))).scalars().one()
@@ -171,10 +171,80 @@ class FakeRedis:
 
 def test_verrou_et_etat():
     r = FakeRedis()
-    assert etat.prendre_verrou(r) is True and etat.prendre_verrou(r) is False
-    etat.liberer_verrou(r)
-    assert etat.prendre_verrou(r) is True
+    jeton = etat.prendre_verrou(r)
+    assert jeton and etat.prendre_verrou(r) is None
+    etat.liberer_verrou(r, "jeton-d-une-autre-passe")
+    assert etat.prendre_verrou(r) is None
+    etat.liberer_verrou(r, jeton)
+    assert etat.prendre_verrou(r)
     assert etat.lire_etat(r) == {"derniere_lecture": None, "statut": None, "erreur": None}
     etat.ecrire_etat(r, "erreur", "Dossier IMAP « Appartements » introuvable")
     e = etat.lire_etat(r)
     assert e["statut"] == "erreur" and "introuvable" in e["erreur"] and e["derniere_lecture"].startswith("20")
+
+
+@pytest.mark.asyncio
+async def test_exception_inattendue_compte_une_tentative_et_continue(session_factory):
+    def extraire(t):
+        if t == "casse":
+            raise ValueError("format inattendu")
+        return [B()]
+
+    res = await traiter_alertes(session_factory, [E("<1>", "casse"), E("<2>", "ok")], extraire=extraire,
+                                analyser_fn=ok_analyse, criteres=C)
+    async with session_factory() as db:
+        a1 = (await db.execute(select(AlerteEmail).where(AlerteEmail.message_id == "<1>"))).scalars().one()
+        a2 = (await db.execute(select(AlerteEmail).where(AlerteEmail.message_id == "<2>"))).scalars().one()
+    assert (a1.statut, a1.tentatives) == ("erreur", 1) and "format inattendu" in a1.erreur
+    assert a2.statut == "ok" and res["annonces"] == 1 and len(res["erreurs"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_lien_trop_long_tronque_et_lien_non_http_ecarte(session_factory):
+    long = "https://www.seloger.com/r?" + "x" * 3000
+    extraits = [B(lien=long, surface=30), B(lien="javascript:alert(1)", surface=31, loyer=600)]
+    await traiter_alertes(session_factory, [E("<1>")], extraire=lambda t: extraits, analyser_fn=ok_analyse, criteres=C)
+    async with session_factory() as db:
+        annonces = (await db.execute(select(Annonce).order_by(Annonce.id))).scalars().all()
+    assert len(annonces[0].lien) <= 2048 and len(annonces[0].lien_norm) <= 2048
+    assert annonces[1].lien is None and annonces[1].lien_norm is None
+
+
+@pytest.mark.asyncio
+async def test_meme_annonce_villes_ecrites_differemment(session_factory):
+    extraits = {"<1>": [B(ville="Bordeaux")],
+                "<2>": [B(ville="Bordeaux (33000)", lien="https://www.leboncoin.fr/ad/9", site="leboncoin")]}
+    await traiter_alertes(session_factory, [E("<1>", "<1>"), E("<2>", "<2>")], extraire=lambda t: extraits[t],
+                          analyser_fn=ok_analyse, criteres=C)
+    assert await _compte(session_factory, Annonce) == 1
+
+
+@pytest.mark.asyncio
+async def test_empreinte_ancienne_ne_fusionne_pas(session_factory):
+    from datetime import timedelta
+    async with session_factory() as db:
+        db.add(Annonce(titre="ancienne", empreinte="690|38|bordeaux", sites="pap",
+                       recue_le=datetime.now(timezone.utc) - timedelta(days=40)))
+        await db.commit()
+    await traiter_alertes(session_factory, [E("<1>")], extraire=lambda t: [B(lien="https://x/nouvelle")],
+                          analyser_fn=ok_analyse, criteres=C)
+    assert await _compte(session_factory, Annonce) == 2
+
+
+@pytest.mark.asyncio
+async def test_budget_de_temps_interrompt_la_passe(session_factory):
+    temps = iter([0, 0, 300, 300, 300])
+    res = await traiter_alertes(session_factory, [E("<1>"), E("<2>")], extraire=lambda t: [B()],
+                                analyser_fn=ok_analyse, criteres=C, budget_s=240, horloge=lambda: next(temps))
+    assert res["interrompu"] is True and res["emails"] == 1
+
+
+@pytest.mark.asyncio
+async def test_ids_termines(session_factory):
+    from app.services.appartements.pipeline import ids_termines
+    async with session_factory() as db:
+        db.add_all([AlerteEmail(message_id="<ok>", statut="ok"), AlerteEmail(message_id="<vide>", statut="vide"),
+                    AlerteEmail(message_id="<err1>", statut="erreur", tentatives=1),
+                    AlerteEmail(message_id="<err3>", statut="erreur", tentatives=3)])
+        await db.commit()
+    assert await ids_termines(session_factory) == {"<ok>", "<vide>", "<err3>"}

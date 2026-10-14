@@ -3,6 +3,7 @@ import email
 import hashlib
 import html as html_lib
 import imaplib
+import logging
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -10,6 +11,8 @@ from email import policy
 from email.utils import parsedate_to_datetime
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 _MOIS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 _LIEN = re.compile(r'<a\b[^>]*href=["\']([^"\']+)["\'][^>]*>(.*?)</a>', re.I | re.S)
@@ -53,14 +56,42 @@ def _depuis(jours: int) -> str:
     return f"{d.day:02d}-{_MOIS[d.month - 1]}-{d.year}"
 
 
-def lire_alertes(jours: int = 3, imap_factory=imaplib.IMAP4_SSL) -> list[EmailAlerte]:
+def _lire_message(client, num, ignorer) -> EmailAlerte | None:
+    if ignorer is not None:
+        _, entete = client.fetch(num, "(BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])")
+        brut_entete = next(p[1] for p in entete if isinstance(p, tuple))
+        mid = (email.message_from_bytes(brut_entete, policy=policy.default)["Message-ID"] or "").strip()
+        if mid and ignorer(mid):
+            return None
+    _, contenu = client.fetch(num, "(BODY.PEEK[])")
+    brut = next(p[1] for p in contenu if isinstance(p, tuple))
+    msg = email.message_from_bytes(brut, policy=policy.default)
+    try:
+        recu = parsedate_to_datetime(msg["Date"]) if msg["Date"] else None
+    except (TypeError, ValueError):
+        recu = None
+    return EmailAlerte(
+        message_id=(msg["Message-ID"] or "").strip() or "sha256:" + hashlib.sha256(brut).hexdigest(),
+        expediteur=str(msg["From"] or ""),
+        sujet=str(msg["Subject"] or ""),
+        recu_le=recu,
+        texte=_texte(msg),
+    )
+
+
+def lire_alertes(jours: int = 3, imap_factory=imaplib.IMAP4_SSL, ignorer=None) -> list[EmailAlerte]:
+    """`ignorer(message_id)` vrai → le message n'est pas téléchargé (seul son en-tête est lu)."""
     utilisateur = settings.imap_user or settings.smtp_user
     mot_de_passe = settings.imap_pass or settings.smtp_pass
     if not utilisateur or not mot_de_passe:
         raise ImapError("IMAP non configuré (IMAP_USER/IMAP_PASS ou SMTP_USER/SMTP_PASS)")
     dossier = settings.imap_dossier
     try:
-        client = imap_factory(settings.imap_host, 993)
+        dossier.encode("ascii")
+    except UnicodeEncodeError as e:
+        raise ImapError(f"Le libellé IMAP « {dossier} » doit être en ASCII (sans accents)") from e
+    try:
+        client = imap_factory(settings.imap_host, 993, timeout=60)
     except OSError as e:
         raise ImapError(f"Serveur IMAP injoignable : {e}") from e
     try:
@@ -74,23 +105,20 @@ def lire_alertes(jours: int = 3, imap_factory=imaplib.IMAP4_SSL) -> list[EmailAl
         _, donnees = client.search(None, "SINCE", _depuis(jours))
         emails = []
         for num in (donnees[0] or b"").split():
-            _, contenu = client.fetch(num, "(BODY.PEEK[])")
-            brut = next(p[1] for p in contenu if isinstance(p, tuple))
-            msg = email.message_from_bytes(brut, policy=policy.default)
             try:
-                recu = parsedate_to_datetime(msg["Date"]) if msg["Date"] else None
-            except (TypeError, ValueError):
-                recu = None
-            emails.append(EmailAlerte(
-                message_id=(msg["Message-ID"] or "").strip() or "sha256:" + hashlib.sha256(brut).hexdigest(),
-                expediteur=str(msg["From"] or ""),
-                sujet=str(msg["Subject"] or ""),
-                recu_le=recu,
-                texte=_texte(msg),
-            ))
+                alerte = _lire_message(client, num, ignorer)
+            except (imaplib.IMAP4.error, OSError):
+                raise
+            except Exception as e:  # message illisible (encodage inconnu, réponse inattendue) : on passe
+                logger.warning("appartements : message IMAP %s ignoré : %r", num, e)
+                continue
+            if alerte is not None:
+                emails.append(alerte)
         return emails
     except imaplib.IMAP4.error as e:
         raise ImapError(f"Erreur IMAP : {e}") from e
+    except OSError as e:
+        raise ImapError(f"Connexion IMAP interrompue : {e}") from e
     finally:
         try:
             client.logout()

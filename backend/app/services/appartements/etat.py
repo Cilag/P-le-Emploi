@@ -1,18 +1,25 @@
 """Verrou d'exécution et état de la dernière lecture des alertes (Redis)."""
 import json
+import uuid
 from datetime import datetime, timezone
 
 CLE_VERROU = "appartements:verrou"
 CLE_ETAT = "appartements:etat"
-DUREE_VERROU = 600
+# Une passe s'arrête d'elle-même après BUDGET_PASSE_S (voir la tâche) : le verrou dure nettement plus.
+DUREE_VERROU = 900
 
 
-def prendre_verrou(r) -> bool:
-    return bool(r.set(CLE_VERROU, "1", nx=True, ex=DUREE_VERROU))
+def prendre_verrou(r) -> str | None:
+    """Renvoie un jeton propre à cette passe, ou None si une autre passe tient le verrou."""
+    jeton = uuid.uuid4().hex
+    return jeton if r.set(CLE_VERROU, jeton, nx=True, ex=DUREE_VERROU) else None
 
 
-def liberer_verrou(r) -> None:
-    r.delete(CLE_VERROU)
+def liberer_verrou(r, jeton: str) -> None:
+    """Ne libère que son propre verrou (une passe ne supprime jamais celui d'une autre)."""
+    valeur = r.get(CLE_VERROU)
+    if valeur is not None and (valeur.decode() if isinstance(valeur, bytes) else valeur) == jeton:
+        r.delete(CLE_VERROU)
 
 
 def ecrire_etat(r, statut: str, erreur: str | None = None) -> None:

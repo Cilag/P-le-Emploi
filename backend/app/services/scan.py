@@ -12,7 +12,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_MOTS_CLES = "DevOps;administrateur système;SRE;ingénieur cloud"
 DEFAULT_VILLE = "Bordeaux"
 DEFAULT_SOURCES = "france_travail,linkedin,adzuna,jooble,welcome_to_the_jungle,apec"
-SOURCES_TELETRAVAIL = ["linkedin", "remotive"]
+# Remotive n'est pas inclus : son API ne renvoie que ses 15 dernières offres, sans filtre (2026-10).
+SOURCES_TELETRAVAIL = ["linkedin"]
 
 
 async def import_offres(db, offres: list[OffreCreate]) -> tuple[int, int]:
@@ -36,7 +37,7 @@ def _liste(valeur: str, sep: str) -> list[str]:
 
 
 def daily_scan_params(env: Mapping[str, str]) -> list[dict]:
-    """Passes du scan quotidien : une par mot-clé sur la ville, puis une par mot-clé en télétravail (LinkedIn, Remotive)."""
+    """Passes du scan quotidien : une par mot-clé sur la ville, puis une par mot-clé en télétravail (LinkedIn)."""
     mots = _liste(env.get("SCAN_MOTS_CLES", DEFAULT_MOTS_CLES), ";")
     sources = _liste(env.get("SCAN_SOURCES", DEFAULT_SOURCES), ",")
     ville = env.get("SCAN_VILLE", DEFAULT_VILLE).strip()

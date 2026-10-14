@@ -38,7 +38,7 @@ def test_daily_scan_params_defauts():
                          "sources": ["france_travail", "linkedin", "adzuna", "jooble",
                                      "welcome_to_the_jungle", "apec"]}
     assert passes[4] == {"secteur": "informatique", "mots_cles": "DevOps", "ville": None,
-                         "sources": ["linkedin", "remotive"], "remote": True}
+                         "sources": ["linkedin"], "remote": True}
     assert [p["mots_cles"] for p in passes[:4]] == ["DevOps", "administrateur système", "SRE", "ingénieur cloud"]
 
 
@@ -46,7 +46,7 @@ def test_daily_scan_params_env():
     passes = daily_scan_params({"SCAN_MOTS_CLES": " SRE ; ;Cloud", "SCAN_VILLE": "Lyon", "SCAN_SOURCES": "linkedin"})
     assert [(p["mots_cles"], p["ville"], p["sources"]) for p in passes] == [
         ("SRE", "Lyon", ["linkedin"]), ("Cloud", "Lyon", ["linkedin"]),
-        ("SRE", None, ["linkedin", "remotive"]), ("Cloud", None, ["linkedin", "remotive"])]
+        ("SRE", None, ["linkedin"]), ("Cloud", None, ["linkedin"])]
 
 
 class _Ok:

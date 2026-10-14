@@ -9,8 +9,8 @@ from app.services.scrapers.base import BaseScraper
 
 logger = logging.getLogger(__name__)
 
-API_URL = "https://fr.jooble.org/api/{cle}"
-RAYON_KM = "40"
+# fr.jooble.org répond 403 à l'API ; le domaine principal accepte la clé.
+API_URL = "https://jooble.org/api/{cle}"
 
 
 class JoobleScraper(BaseScraper):
@@ -22,7 +22,8 @@ class JoobleScraper(BaseScraper):
     async def scrape(self, secteur, region, ville, type_contrat, mots_cles) -> List[OffreCreate]:
         if not settings.jooble_api_key:
             return []
-        corps = {"keywords": mots_cles or secteur, "location": ville or "", "radius": RAYON_KM, "page": "1"}
+        # « Bordeaux » seul (avec ou sans rayon) ne renvoie rien ; « Bordeaux, France » fonctionne.
+        corps = {"keywords": mots_cles or secteur, "location": f"{ville}, France" if ville else "France", "page": "1"}
         url = API_URL.format(cle=settings.jooble_api_key)
         data = await appel_json(self.source_name, "POST", url, self._transport, json=corps)
         if data is None:

@@ -98,8 +98,8 @@ async def test_jooble_requete_et_conversion(cles):
 
     offres = await jooble.JoobleScraper(transport=httpx.MockTransport(handler)).scrape(
         ville="Bordeaux", mots_cles="administrateur système", **KW)
-    assert vu["url"] == "https://fr.jooble.org/api/" + "j" * 36
-    assert vu["body"] == {"keywords": "administrateur système", "location": "Bordeaux", "radius": "40", "page": "1"}
+    assert vu["url"] == "https://jooble.org/api/" + "j" * 36
+    assert vu["body"] == {"keywords": "administrateur système", "location": "Bordeaux, France", "page": "1"}
     a, b = offres
     assert (a.titre, a.entreprise, a.ville, a.type_contrat) == (
         "Administrateur Systèmes & Réseaux", "Globex", "Bordeaux (33)", "CDI")

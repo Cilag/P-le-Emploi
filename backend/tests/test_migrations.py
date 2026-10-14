@@ -38,3 +38,17 @@ async def test_patch_offre_email_contact(api, session_factory):
     assert r.status_code == 200 and r.json()["email_contact"] == "rh@acme.fr"
     assert (await api.patch(f"/offres/{o.id}", json={"email_contact": "pas-un-email"})).status_code == 422
     assert (await api.patch("/offres/999", json={"email_contact": None})).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_filtre_offres_avec_email(api, session_factory):
+    from app.models.offre import Offre
+
+    async with session_factory() as db:
+        for titre, email in [("SRE", "rh@acme.fr"), ("DevOps", None)]:
+            db.add(Offre(titre=titre, entreprise="Acme", lien_source="https://x", source="test",
+                         email_contact=email, dedup_hash=Offre.compute_hash(titre, "Acme", "")))
+        await db.commit()
+    assert [o["titre"] for o in (await api.get("/offres", params={"avec_email": "true"})).json()] == ["SRE"]
+    assert len((await api.get("/offres")).json()) == 2
+    assert len((await api.get("/offres", params={"avec_email": "false"})).json()) == 2

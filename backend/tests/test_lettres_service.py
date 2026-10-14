@@ -143,3 +143,76 @@ def test_backend_retombe_sur_les_defauts_du_worker(monkeypatch):
     wc = importlib.reload(wc)
     assert wc._celery.conf.result_backend == "redis://redis:6379/1"
     assert wc._celery.conf.broker_url == "redis://redis:6379/0"
+
+
+async def _offre_linkedin(db, description=None):
+    o = Offre(titre="SRE", entreprise="Acme", source="linkedin", description=description,
+              lien_source="https://fr.linkedin.com/jobs/view/sre-at-acme-4460019972",
+              dedup_hash=Offre.compute_hash("SRE", "Acme", "linkedin"))
+    db.add(o)
+    await db.commit()
+    return o
+
+
+@pytest.mark.asyncio
+async def test_linkedin_sans_description_la_recupere_avant_la_lettre(session_factory):
+    vu = {}
+
+    async def fake_fetch(lien):
+        vu["lien"] = lien
+        return "Kubernetes, Terraform"
+
+    def fake_generate(**kw):
+        vu.update(kw)
+        return "Lettre"
+
+    async with session_factory() as db:
+        o = await _offre_linkedin(db)
+        await generer_lettre_pour_offre(db, o.id, generate=fake_generate, fetch_description=fake_fetch)
+        await db.refresh(o)
+    assert vu["lien"] == "https://fr.linkedin.com/jobs/view/sre-at-acme-4460019972"
+    assert vu["offre_description"] == "Kubernetes, Terraform"
+    assert o.description == "Kubernetes, Terraform"
+
+
+@pytest.mark.asyncio
+async def test_linkedin_description_indisponible_ecrit_quand_meme(session_factory):
+    async def fake_fetch(lien):
+        return None
+
+    async with session_factory() as db:
+        o = await _offre_linkedin(db)
+        out = await generer_lettre_pour_offre(db, o.id, generate=lambda **kw: "Lettre", fetch_description=fake_fetch)
+        await db.refresh(o)
+    assert out["reused"] is False and o.description is None
+
+
+@pytest.mark.asyncio
+async def test_description_deja_connue_pas_de_requete(session_factory):
+    async def fake_fetch(lien):
+        pytest.fail("aucune requête attendue")
+
+    async with session_factory() as db:
+        o = await _offre_linkedin(db, description="Déjà là")
+        await generer_lettre_pour_offre(db, o.id, generate=lambda **kw: "Lettre", fetch_description=fake_fetch)
+
+
+@pytest.mark.asyncio
+async def test_autre_source_pas_de_requete(session_factory):
+    async def fake_fetch(lien):
+        pytest.fail("aucune requête attendue")
+
+    async with session_factory() as db:
+        o = await _offre(db)
+        await generer_lettre_pour_offre(db, o.id, generate=lambda **kw: "Lettre", fetch_description=fake_fetch)
+
+
+@pytest.mark.asyncio
+async def test_linkedin_erreur_inattendue_ecrit_quand_meme(session_factory):
+    async def fake_fetch(lien):
+        raise ValueError("page inattendue")
+
+    async with session_factory() as db:
+        o = await _offre_linkedin(db)
+        out = await generer_lettre_pour_offre(db, o.id, generate=lambda **kw: "Lettre", fetch_description=fake_fetch)
+    assert out["reused"] is False and "lettre_id" in out

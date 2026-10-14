@@ -91,7 +91,12 @@ ${extrait}`;
 
   const emailMutation = useMutation({
     mutationFn: ({ offreId, email }: { offreId: number; email: string }) => updateOffreEmail(offreId, email),
-    onSuccess: () => { toast.success("E-mail enregistré : « Postuler » enverra désormais par e-mail"); setKit(null); refresh(); },
+    onSuccess: () => {
+      toast.success("E-mail enregistré : « Postuler » enverra désormais par e-mail");
+      setKit(null);
+      refresh();
+      qc.invalidateQueries({ queryKey: ["offres"] });
+    },
     onError: (e) => toast.error(errorMessage(e)),
   });
 

@@ -3,7 +3,9 @@
 Lecture seule de pages publiques ; aucune connexion au compte LinkedIn de l'utilisateur.
 """
 import logging
+import re
 from typing import List
+from urllib.parse import urlsplit
 
 import httpx
 from bs4 import BeautifulSoup
@@ -14,6 +16,8 @@ from app.services.scrapers.base import BaseScraper
 logger = logging.getLogger(__name__)
 
 GUEST_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
+JOB_POSTING_URL = "https://www.linkedin.com/jobs-guest/jobs/api/jobPosting/{job_id}"
+_JOB_ID_RE = re.compile(r"-(\d{6,})/?$")
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36",
     "Accept-Language": "fr-FR,fr;q=0.9",
@@ -73,3 +77,37 @@ class LinkedInScraper(BaseScraper):
         offres = parse_linkedin_cards(resp.text)
         logger.info("linkedin : %d offres pour %s", len(offres), params)
         return offres
+
+
+def job_id(lien: str) -> str | None:
+    """Identifiant numérique de l'offre, en fin de chemin (…/jobs/view/<slug>-<id>), paramètres ignorés."""
+    m = _JOB_ID_RE.search(urlsplit(lien or "").path)
+    return m.group(1) if m else None
+
+
+def parse_description(html: str) -> str | None:
+    soup = BeautifulSoup(html, "html.parser")
+    bloc = soup.select_one(".show-more-less-html__markup") or soup.select_one(".description__text")
+    if not bloc:
+        return None
+    lignes = (ligne.strip() for ligne in bloc.get_text("\n").splitlines())
+    texte = re.sub(r"\n{3,}", "\n\n", "\n".join(lignes)).strip()
+    return texte or None
+
+
+async def fetch_description(lien: str, transport: httpx.AsyncBaseTransport | None = None) -> str | None:
+    """Description complète d'une offre via la page publique ; None si indisponible (lien, 429, réseau)."""
+    jid = job_id(lien)
+    if not jid:
+        return None
+    url = JOB_POSTING_URL.format(job_id=jid)
+    try:
+        async with httpx.AsyncClient(timeout=30, headers=HEADERS, transport=transport) as client:
+            resp = await client.get(url)
+    except httpx.HTTPError as e:
+        logger.warning("linkedin : description %s injoignable — %s", jid, e)
+        return None
+    if resp.status_code != 200:
+        logger.warning("linkedin : HTTP %s pour la description %s", resp.status_code, jid)
+        return None
+    return parse_description(resp.text)

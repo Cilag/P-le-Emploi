@@ -68,3 +68,26 @@ def test_extract_text_from_doc_extension():
     content = _make_docx_bytes("Isabelle Blanc Chef de Projet")
     result = extract_cv_text("cv.doc", content)
     assert "Isabelle Blanc" in result
+
+
+# ── NUL bytes (PostgreSQL refuse \x00 dans un TEXT) ───────────────────────────
+
+def test_extract_text_strips_nul_bytes_from_pdf(monkeypatch):
+    from app.services import cv_parser
+
+    class _Page:
+        def extract_text(self):
+            return "EXP\x00ÉRIENCES\x00 Bordeaux"
+
+    class _Reader:
+        def __init__(self, _stream):
+            self.pages = [_Page()]
+
+    import pypdf
+    monkeypatch.setattr(pypdf, "PdfReader", _Reader)
+    assert cv_parser.extract_cv_text("cv.pdf", b"%PDF") == "EXPÉRIENCES Bordeaux"
+
+
+def test_extract_text_strips_nul_bytes_from_plain_text():
+    from app.services.cv_parser import extract_cv_text
+    assert extract_cv_text("cv.txt", b"Jean\x00 Dupont") == "Jean Dupont"

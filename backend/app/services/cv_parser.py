@@ -22,7 +22,10 @@ def extract_text_from_docx(content: bytes) -> str:
 def extract_cv_text(filename: str, content: bytes) -> str:
     suffix = Path(filename).suffix.lower()
     if suffix == ".pdf":
-        return extract_text_from_pdf(content)
+        text = extract_text_from_pdf(content)
     elif suffix in (".docx", ".doc"):
-        return extract_text_from_docx(content)
-    return content.decode("utf-8", errors="ignore")
+        text = extract_text_from_docx(content)
+    else:
+        text = content.decode("utf-8", errors="ignore")
+    # Certains PDF produisent des octets nuls, refusés par PostgreSQL dans une colonne TEXT.
+    return text.replace("\x00", "")

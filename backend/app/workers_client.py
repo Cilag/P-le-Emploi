@@ -47,9 +47,23 @@ class _CvAuditTask:
         )
 
 
+class _LireAlertesTask:
+    @staticmethod
+    def apply_async(kwargs: dict, queue: str = "default"):
+        return _celery.send_task("workers.tasks.appartements.lire_alertes", kwargs=kwargs, queue=queue)
+
+
+class _AnalyserAnnonceTask:
+    @staticmethod
+    def apply_async(kwargs: dict, queue: str = "default"):
+        return _celery.send_task("workers.tasks.appartements.analyser_annonce", kwargs=kwargs, queue=queue)
+
+
 run_scan_task = _ScanTask()
 generate_letter_task = _GenerateLetterTask()
 run_cv_audit_task = _CvAuditTask()
+lire_alertes_task = _LireAlertesTask()
+analyser_annonce_task = _AnalyserAnnonceTask()
 
 
 def get_celery_app() -> Celery:

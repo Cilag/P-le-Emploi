@@ -10,7 +10,7 @@ app = Celery(
     broker=BROKER_URL,
     backend=RESULT_BACKEND,
     # Fix: sans include=, le worker n'enregistre AUCUNE tâche (tasks/__init__ n'importe pas les modules).
-    include=["tasks.ai", "tasks.cv_audit", "tasks.scraping"],
+    include=["tasks.ai", "tasks.cv_audit", "tasks.scraping", "tasks.appartements"],
 )
 
 app.conf.update(
@@ -46,5 +46,11 @@ app.conf.beat_schedule = {
         "task": "workers.tasks.scraping.run_daily_scan",
         "schedule": crontab(minute=0, hour=7),
         "options": {"queue": "scraping"},
+    },
+    # Alertes e-mail d'annonces de location (onglet Appartements) : lecture toutes les 5 minutes
+    "appartements-alertes": {
+        "task": "workers.tasks.appartements.lire_alertes",
+        "schedule": crontab(minute="*/5"),
+        "options": {"queue": "default"},
     },
 }

@@ -21,7 +21,7 @@ const SOURCES_LABELS: Record<string, string> = {
 
 export default function JobsPage() {
   const qc = useQueryClient();
-  const [filters, setFilters] = useState({ source: "", type_contrat: "", ville: "" });
+  const [filters, setFilters] = useState({ source: "", type_contrat: "", ville: "", avec_email: "" });
   const [scanParams, setScanParams] = useState<ScanParams>({ secteur: "informatique", mots_cles: "" });
   const [scanTaskId, setScanTaskId] = useState<string | null>(null);
   const [showScanModal, setShowScanModal] = useState(false);
@@ -147,6 +147,15 @@ export default function JobsPage() {
           value={filters.ville}
           onChange={(e) => setFilters((f) => ({ ...f, ville: e.target.value }))}
         />
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            className="w-4 h-4 accent-primary-600"
+            checked={filters.avec_email === "true"}
+            onChange={(e) => setFilters((f) => ({ ...f, avec_email: e.target.checked ? "true" : "" }))}
+          />
+          Postulable par e-mail
+        </label>
       </div>
 
       {/* Results */}
@@ -240,6 +249,11 @@ function OffreCard({ offre, selected, onToggle, onPrepare, preparing }: { offre:
         <p className="text-sm text-gray-600 mt-0.5">{offre.entreprise} {offre.ville ? `— ${offre.ville}` : ""}</p>
         {offre.type_contrat && (
           <span className="inline-block mt-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{offre.type_contrat}</span>
+        )}
+        {offre.email_contact && (
+          <span className="inline-block mt-1 ml-1 text-xs bg-green-50 text-green-700 px-2 py-0.5 rounded-full" title={offre.email_contact}>
+            ✉ E-mail
+          </span>
         )}
       </div>
       <div className="flex flex-col items-end gap-2 shrink-0">

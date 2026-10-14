@@ -27,6 +27,7 @@ async def session_factory():
     import app.models.cv  # noqa: F401
     import app.models.lettre  # noqa: F401
     import app.models.offre  # noqa: F401
+    import app.models.appartement  # noqa: F401
 
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",

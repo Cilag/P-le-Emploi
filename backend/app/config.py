@@ -24,6 +24,14 @@ class Settings(BaseSettings):
     adzuna_app_id: str = ""
     adzuna_app_key: str = ""
     jooble_api_key: str = ""
+    # Onglet Appartements : lecture des alertes e-mail (IMAP, repli sur SMTP_USER/SMTP_PASS) et critères
+    imap_host: str = "imap.gmail.com"
+    imap_user: str = ""
+    imap_pass: str = ""
+    imap_dossier: str = "Appartements"
+    appart_loyer_max: int = 700
+    appart_pieces_max: int = 2
+    appart_villes: str = "Bordeaux;Talence"
 
     smtp_host: str = ""
     smtp_port: int = 587

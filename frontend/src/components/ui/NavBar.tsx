@@ -7,6 +7,7 @@ const links = [
   { href: "/jobs", label: "Offres" },
   { href: "/letters", label: "Lettres" },
   { href: "/applications", label: "Candidatures" },
+  { href: "/appartements", label: "Appartements" },
   { href: "/cv-upload", label: "Mon CV" },
   { href: "/audit", label: "Audit" },
 ];

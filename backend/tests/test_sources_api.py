@@ -175,3 +175,11 @@ def test_sources_enregistrees():
     assert ALL_SCRAPERS["adzuna"] is adzuna.AdzunaScraper
     assert ALL_SCRAPERS["jooble"] is jooble.JoobleScraper
     assert ALL_SCRAPERS["remotive"] is remotive.RemotiveScraper
+
+
+def test_texte_brut_separe_les_blocs_sans_espacer_les_balises_en_ligne():
+    from app.services.scrapers.api_commun import texte_brut
+
+    assert texte_brut("<p>Missions</p><ul><li>Kubernetes</li><li>Terraform</li></ul>") == "Missions Kubernetes Terraform"
+    assert texte_brut("Ligne 1<br>Ligne 2") == "Ligne 1 Ligne 2"
+    assert texte_brut("<b>Dev</b><strong>Ops</strong> &amp; SRE&nbsp;!") == "DevOps & SRE !"

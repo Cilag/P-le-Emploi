@@ -8,7 +8,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-_BLOC = re.compile(r"</?(?:p|br|div|li|ul|ol|h[1-6]|tr|td|section)[^>]*>", re.I)
+_BLOC = re.compile(r"</?(?:p|br|div|li|ul|ol|h[1-6]|tr|td|section)\b[^>]*>", re.I)
 _BALISE = re.compile(r"<[^>]+>")
 _ESPACES = re.compile(r"\s+")
 

@@ -204,3 +204,48 @@ export const copierTexte = async (texte: string) => {
   document.body.removeChild(ta);
   if (!ok) throw new Error("copie impossible");
 };
+
+// Appartements
+export interface Annonce {
+  id: number;
+  titre: string;
+  loyer: number | null;
+  charges: number | null;
+  charges_comprises: boolean | null;
+  loyer_retenu: number | null;
+  surface: number | null;
+  pieces: number | null;
+  ville: string | null;
+  quartier: string | null;
+  lien: string | null;
+  sites: string;
+  drapeaux: string;
+  recue_le: string;
+  note: number | null;
+  resume: string | null;
+  alertes: string | null;
+  message: string | null;
+  statut: string;
+  vue: boolean;
+  analyse_erreur: string | null;
+}
+
+export interface EtatAppartements {
+  derniere_lecture: string | null;
+  dernier_statut: string | null;
+  derniere_erreur: string | null;
+  nb_alertes_24h: number;
+  nb_annonces_24h: number;
+}
+
+export const getAnnonces = (params?: Record<string, string>) =>
+  api.get<Annonce[]>("/appartements", { params }).then((r) => r.data);
+export const getAnnonce = (id: number) => api.get<Annonce>(`/appartements/${id}`).then((r) => r.data);
+export const updateAnnonceStatut = (id: number, statut: string) =>
+  api.patch<Annonce>(`/appartements/${id}`, { statut }).then((r) => r.data);
+export const relancerAnalyse = (id: number) => api.post(`/appartements/${id}/analyser`).then((r) => r.data);
+export const lireAlertesMaintenant = () => api.post("/appartements/lire-maintenant").then((r) => r.data);
+export const getEtatAppartements = () => api.get<EtatAppartements>("/appartements/etat").then((r) => r.data);
+export const getDossier = () =>
+  api.get<{ texte: string; modifie_le: string | null }>("/appartements/dossier").then((r) => r.data);
+export const saveDossier = (texte: string) => api.put("/appartements/dossier", { texte }).then((r) => r.data);

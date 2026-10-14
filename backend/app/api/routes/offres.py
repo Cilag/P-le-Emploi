@@ -21,6 +21,7 @@ async def list_offres(
     type_contrat: Optional[str] = Query(None, max_length=_FILTER_MAX_LEN),
     ville: Optional[str] = Query(None, max_length=_FILTER_MAX_LEN),
     statut: Optional[str] = Query(None, max_length=_FILTER_MAX_LEN),
+    avec_email: bool = False,
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -34,6 +35,8 @@ async def list_offres(
         q = q.where(Offre.ville.ilike(f"%{ville}%"))
     if statut:
         q = q.where(Offre.statut == statut)
+    if avec_email:
+        q = q.where(Offre.email_contact.is_not(None))
     q = q.offset((page - 1) * per_page).limit(per_page)
     result = await db.execute(q)
     return result.scalars().all()

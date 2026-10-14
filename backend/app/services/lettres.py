@@ -15,6 +15,7 @@ async def generer_lettre_pour_offre(
     force_regenerate: bool = False,
     candidature_id: int | None = None,
     generate=generate_cover_letter,
+    fetch_description=None,
 ) -> dict:
     offre = await db.get(Offre, offre_id)
     if not offre:
@@ -40,6 +41,7 @@ async def generer_lettre_pour_offre(
         version_max = (
             await db.execute(select(func.max(Lettre.version)).where(Lettre.entreprise == offre.entreprise))
         ).scalar()
+        await _completer_description(db, offre, fetch_description)
         cv = (await db.execute(select(CV).where(CV.actif == True).limit(1))).scalars().first()  # noqa: E712
         contenu = generate(
             cv_text=cv.texte_extrait if cv and cv.texte_extrait else "CV non disponible.",
@@ -64,3 +66,15 @@ async def generer_lettre_pour_offre(
             candidature.lettre_id = lettre.id
     await db.commit()
     return {"lettre_id": lettre.id, "reused": reused}
+
+
+async def _completer_description(db: AsyncSession, offre: Offre, fetch_description=None) -> None:
+    """Les offres LinkedIn arrivent sans description : on la lit sur la page publique avant d'écrire."""
+    if offre.source != "linkedin" or offre.description:
+        return
+    if fetch_description is None:
+        from app.services.scrapers.linkedin import fetch_description
+    description = await fetch_description(offre.lien_source)
+    if description:
+        offre.description = description
+        await db.flush()

@@ -6,6 +6,7 @@ from sqlalchemy import select
 
 from app.models.offre import Offre
 from app.schemas.offre import OffreCreate
+from app.services.pertinence import est_pertinente, groupes_de_termes
 
 logger = logging.getLogger(__name__)
 
@@ -41,17 +42,20 @@ def daily_scan_params(env: Mapping[str, str]) -> list[dict]:
     mots = _liste(env.get("SCAN_MOTS_CLES", DEFAULT_MOTS_CLES), ";")
     sources = _liste(env.get("SCAN_SOURCES", DEFAULT_SOURCES), ",")
     ville = env.get("SCAN_VILLE", DEFAULT_VILLE).strip()
-    passes = [{"secteur": "informatique", "mots_cles": m, "ville": ville, "sources": sources} for m in mots]
-    passes += [
-        {"secteur": "informatique", "mots_cles": m, "ville": None, "sources": list(SOURCES_TELETRAVAIL), "remote": True}
-        for m in mots
-    ]
+    # Pas de filtre de pertinence : les offres IT voisines des mots-clés (réseau, support…) restent utiles.
+    commun = {"secteur": "informatique", "filtre_pertinence": False}
+    passes = [{**commun, "mots_cles": m, "ville": ville, "sources": sources} for m in mots]
+    passes += [{**commun, "mots_cles": m, "ville": None, "sources": list(SOURCES_TELETRAVAIL), "remote": True}
+               for m in mots]
     return passes
 
 
 async def executer_passe(scan_params: dict, scrapers: Mapping, session_factory) -> dict:
     """Interroge chaque source ; l'échec d'une source n'arrête pas les autres."""
-    res = {"imported": 0, "duplicates": 0, "errors": [], "par_source": {}}
+    res = {"imported": 0, "duplicates": 0, "hors_sujet": 0, "errors": [], "par_source": {}}
+    # Sans mots-clés, les sources cherchent sur le secteur (trop large pour filtrer).
+    filtrer = scan_params.get("filtre_pertinence", True)
+    groupes = groupes_de_termes(scan_params.get("mots_cles")) if filtrer else []
     for name in scan_params.get("sources") or list(scrapers.keys()):
         kwargs = {
             "secteur": scan_params.get("secteur", "informatique"),
@@ -68,6 +72,10 @@ async def executer_passe(scan_params: dict, scrapers: Mapping, session_factory) 
                 res["errors"].append(f"{name}: source inconnue")
                 continue
             offres = await cls().scrape(**kwargs)
+            if groupes and getattr(cls, "filtre_pertinence", True):
+                gardees = [o for o in offres if est_pertinente(o.titre, o.description, groupes)]
+                res["hors_sujet"] += len(offres) - len(gardees)
+                offres = gardees
             async with session_factory() as db:
                 importees, doublons = await import_offres(db, offres)
         except Exception as e:

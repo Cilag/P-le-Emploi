@@ -234,3 +234,23 @@ async def test_upload_cv_path_traversal(client):
             files={"file": ("../../../etc/passwd.pdf", b"%PDF-1.4 tiny", "application/pdf")},
         )
     assert resp.status_code in (201, 400)
+
+
+@pytest.mark.asyncio
+async def test_list_offres_recherche_par_mots_cles(client):
+    from app.models.offre import Offre
+    async with TestSessionLocal() as db:
+        for i, (titre, desc) in enumerate([
+            ("Architecte d'intérieur (H/F)", None),
+            ("Designer d'espace", "Agence d'architecture intérieure"),
+            ("Ingénieur DevOps", "Kubernetes"),
+        ]):
+            db.add(Offre(titre=titre, entreprise="A", description=desc, lien_source="https://x",
+                         source="test", dedup_hash=str(i)))
+        await db.commit()
+    resp = await client.get("/offres", params={"recherche": "architecture d'interieur"})
+    assert resp.status_code == 200
+    assert sorted(o["titre"] for o in resp.json()) == ["Architecte d'intérieur (H/F)", "Designer d'espace"]
+    resp = await client.get("/offres", params={"recherche": "architecture d'interieur", "per_page": 1, "page": 2})
+    assert len(resp.json()) == 1
+    assert len((await client.get("/offres")).json()) == 3

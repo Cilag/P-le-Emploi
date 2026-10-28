@@ -30,10 +30,11 @@ def run_daily_scan(self):
     from app.services.scan import daily_scan_params, executer_passe
     from app.services.scrapers import ALL_SCRAPERS
 
-    total = {"imported": 0, "duplicates": 0, "errors": []}
+    total = {"imported": 0, "duplicates": 0, "hors_sujet": 0, "errors": []}
     for params in daily_scan_params(os.environ):
         r = run_async(executer_passe(params, ALL_SCRAPERS, AsyncSessionLocal))
         total["imported"] += r["imported"]
         total["duplicates"] += r["duplicates"]
+        total["hors_sujet"] += r["hors_sujet"]
         total["errors"] += [f"[{params['mots_cles']}] {e}" for e in r["errors"]]
     return total

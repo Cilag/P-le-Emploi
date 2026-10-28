@@ -8,6 +8,7 @@ from app.core.auth import get_current_user
 from app.db.session import get_db
 from app.models.offre import Offre
 from app.schemas.offre import OffreRead, OffreScanParams, OffreUpdate
+from app.services.pertinence import est_pertinente, groupes_de_termes
 
 router = APIRouter(prefix="/offres", tags=["offres"])
 
@@ -22,11 +23,12 @@ async def list_offres(
     ville: Optional[str] = Query(None, max_length=_FILTER_MAX_LEN),
     statut: Optional[str] = Query(None, max_length=_FILTER_MAX_LEN),
     avec_email: bool = False,
+    recherche: Optional[str] = Query(None, max_length=_FILTER_MAX_LEN),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
 ):
-    q = select(Offre).order_by(Offre.date_import.desc())
+    q = select(Offre).order_by(Offre.date_import.desc(), Offre.id.desc())
     if source:
         q = q.where(Offre.source == source)
     if type_contrat:
@@ -37,6 +39,12 @@ async def list_offres(
         q = q.where(Offre.statut == statut)
     if avec_email:
         q = q.where(Offre.email_contact.is_not(None))
+    groupes = groupes_de_termes(recherche)
+    if groupes:
+        # Filtre en Python : insensible aux accents quelle que soit la base (quelques milliers d'offres).
+        offres = [o for o in (await db.execute(q)).scalars().all()
+                  if est_pertinente(o.titre, o.description, groupes)]
+        return offres[(page - 1) * per_page: page * per_page]
     q = q.offset((page - 1) * per_page).limit(per_page)
     result = await db.execute(q)
     return result.scalars().all()

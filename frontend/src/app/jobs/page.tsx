@@ -24,7 +24,7 @@ const SOURCES_LABELS: Record<string, string> = {
 
 export default function JobsPage() {
   const qc = useQueryClient();
-  const [filters, setFilters] = useState({ source: "", type_contrat: "", ville: "", avec_email: "" });
+  const [filters, setFilters] = useState({ recherche: "", source: "", type_contrat: "", ville: "", avec_email: "" });
   const [scanParams, setScanParams] = useState<ScanParams>({ secteur: "informatique", mots_cles: "" });
   const [scanTaskId, setScanTaskId] = useState<string | null>(null);
   const [showScanModal, setShowScanModal] = useState(false);
@@ -84,6 +84,8 @@ export default function JobsPage() {
     select: (data) => {
       if (data.status === "SUCCESS") {
         toast.success(`Scan terminé : ${(data.result as { imported?: number })?.imported ?? 0} offres importées`);
+        // Affiche les offres de la recherche qui vient d'être lancée.
+        setFilters((f) => ({ ...f, recherche: scanParams.mots_cles ?? "" }));
         qc.invalidateQueries({ queryKey: ["offres"] });
         setScanTaskId(null);
       }
@@ -122,6 +124,13 @@ export default function JobsPage() {
 
       {/* Filters */}
       <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex gap-3 flex-wrap">
+        <input
+          aria-label="Rechercher par mots-clés"
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm flex-1 min-w-[220px]"
+          placeholder="Métier, mots-clés (ex : architecture d'intérieur)"
+          value={filters.recherche}
+          onChange={(e) => setFilters((f) => ({ ...f, recherche: e.target.value }))}
+        />
         <select
           aria-label="Filtrer par source"
           className="border border-gray-200 rounded-lg px-3 py-2 text-sm"

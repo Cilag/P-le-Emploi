@@ -63,6 +63,8 @@ def parse_linkedin_cards(html: str) -> list[OffreCreate]:
 
 class LinkedInScraper(BaseScraper):
     source_name = "linkedin"
+    # Pas de description au scan et titres souvent en anglais : on fait confiance à sa recherche.
+    filtre_pertinence = False
 
     def __init__(self, transport: httpx.AsyncBaseTransport | None = None):
         self._transport = transport
